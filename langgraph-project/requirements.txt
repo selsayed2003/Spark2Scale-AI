@@ -1,0 +1,8 @@
+langgraph
+langchain-openai
+fastapi
+uvicorn
+python-dotenv
+pydantic-settings
+tavily-python
+python-pptx
