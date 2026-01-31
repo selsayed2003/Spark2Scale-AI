@@ -1,0 +1,96 @@
+{
+  "startup_evaluation": {
+    "meta_data": {
+      "form_type": "Pre-Seed & Seed Evaluation",
+      "last_updated": "2026-01-31"
+    },
+    "company_snapshot": {
+      "company_name": "Kashb",
+      "website_url": "https://www.kashb-demo.eg",
+      "hq_location": "Cairo, Egypt",
+      "date_founded": "2025-01-15",
+      "current_stage": "Pre-Seed",
+      "amount_raised_to_date": "USD 50,000",
+      "current_round": {
+        "target_amount": "USD 350,000",
+        "target_close_date": "2026-04-01"
+      }
+    },
+    "founder_and_team": {
+      "founders": [
+        {
+          "name": "Tarek El-Sayed",
+          "role": "CEO",
+          "ownership_percentage": 100,
+          "prior_experience": "Product Lead at Swvl (Expansion Team); Senior Ops Manager at Fawry.",
+          "years_direct_experience": 9,
+          "founder_market_fit_statement": "I managed the daily payouts for 5,000+ captains at Swvl and saw firsthand how 60% of them struggle with cash flow management. I have deep connections within the CBE (Central Bank of Egypt) regulatory sandbox."
+        }
+      ],
+      "execution": {
+        "full_time_start_date": "2025-09-01",
+        "key_shipments": [
+          {
+            "date": "2025-10-15",
+            "item": "Signed MOU with local microbus syndicate (2,000 drivers)."
+          },
+          {
+            "date": "2025-11-20",
+            "item": "Launched SMS-based lending MVP (USSD)."
+          }
+        ]
+      }
+    },
+    "problem_definition": {
+      "customer_profile": {
+        "role": "Microbus Drivers / Transport Operators",
+        "company_size": "Informal / Micro-SME",
+        "industry": "Transportation & Logistics"
+      },
+      "problem_statement": "Informal transport drivers operate entirely in cash, leaving them with no credit score to access financing for vehicle repairs or fuel.",
+      "current_solution": "Predatory informal lenders (sharks) or borrowing from family/friends.",
+      "gap_analysis": "Informal lenders charge 20%+ monthly interest; family borrowing is unreliable and unscalable.",
+      "frequency": "Daily (Fueling) and Monthly (Maintenance).",
+      "impact_metrics": {
+        "cost_type": "Financial & Risk",
+        "description": "Drivers lose 15% of income to predatory interest; high risk of cash theft."
+      },
+      "evidence": {
+        "interviews_conducted": 120,
+        "customer_quotes": [
+          "I keep my money under the seat because I don't trust banks.",
+          "If my engine breaks, I am out of work for 2 weeks because I can't get a loan.",
+          "The lender takes half my profit just for giving me cash for gas."
+        ]
+      }
+    },
+    "product_and_solution": {
+      "product_stage": "MVP",
+      "demo_link": "https://kashb-demo.eg/ussd-flow",
+      "core_stickiness": "Instant micro-credit for fuel disbursed directly to the gas station wallet (no cash handling).",
+      "differentiation": "We use alternative credit scoring based on their driving routes (GPS data) rather than bank history.",
+      "defensibility_moat": "Proprietary credit scoring algorithm and exclusive partnership with the Transport Syndicate."
+    },
+    "market_and_scope": {
+      "beachhead_market": "Microbus drivers in Greater Cairo (Giza & Cairo Governorates).",
+      "market_size_estimate": "120,000 Drivers in Cairo (~$50M annual lending opportunity).",
+      "long_term_vision": "Becoming the digital bank for the entire gig-economy workforce in North Africa.",
+      "expansion_strategy": "Expand to Tuk-tuks in Alexandria, then enter Morocco/Tunisia."
+    },
+    "traction_metrics": {
+      "stage_context": "Pre-Seed",
+      "user_count": 450,
+      "active_users_monthly": 320,
+      "partnerships_and_lois": [
+        "Cairo Transport Syndicate (MOU)",
+        "TotalEnergies Egypt (Pilot for fuel payments)"
+      ],
+      "early_revenue": "USD 1,200 (Interest income from pilot)"
+    },
+    "vision_and_strategy": {
+      "five_year_vision": "To become the 'Nubank' for the informal transport sector in MENA.",
+      "category_definition": "Embedded Finance for Mobility.",
+      "primary_risk": "Regulatory changes regarding non-banking financial institution (NBFI) licenses in Egypt."
+    }
+  }
+}

@@ -1,8 +1,3 @@
-langgraph
-langchain-openai
-fastapi
-uvicorn
-python-dotenv
-pydantic-settings
-tavily-python
-python-pptx
+langchain-core==1.2.7
+langchain-google-community==3.0.5
+spacy==3.8.11
