@@ -1,3 +1,5 @@
 langchain-core==1.2.7
 langchain-google-community==3.0.5
 spacy==3.8.11
+langchain-google-genai==4.2.0
+python-dotenv==1.2.1
