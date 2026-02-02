@@ -27,4 +27,4 @@ $ pip install -r requirements.txt
 $ cp .env.example .env
 ```
 
-Set your environment variables in the `.env` file. Like `OPEN_API_KEY` value.
+Set your environment variables in the `.env` file. Like `GEMINI_API_KEY` value.
