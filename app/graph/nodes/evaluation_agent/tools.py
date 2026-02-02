@@ -1,98 +1,45 @@
-import spacy
-from langchain_core.tools import tool
-from langchain_google_community import GoogleSearchAPIWrapper
-from spacy.cli import download
 import json
 import os
-from datetime import datetime
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_core.output_parsers import StrOutputParser, JsonOutputParser
-from prompts import CONTRADICTION_TEAM_PROMPT_TEMPLATE, VALUATION_RISK_PROBLEM_PROMPT_TEMPLATE, VALUATION_RISK_TEAM_PROMPT_TEMPLATE, SCORING_AGENT_PROMPT
-from langchain_core.prompts import PromptTemplate
-from dotenv import load_dotenv
-load_dotenv()
-from helpers import load_schema
+import time
 import requests
+from datetime import datetime
+from dotenv import load_dotenv
 
-# try:
-#     nlp = spacy.load("en_core_web_sm")
-# except OSError:                             
-#     download("en_core_web_sm")
-#     nlp = spacy.load("en_core_web_sm")
+# LangChain & AI Imports
+from langchain_core.prompts import PromptTemplate
+from langchain_core.output_parsers import StrOutputParser, JsonOutputParser
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_google_genai.chat_models import ChatGoogleGenerativeAIError
+from google.api_core.exceptions import ResourceExhausted
 
-# @tool
-# def calculate_information_density(text: str):
-#     """
-#     Calculates the 'Information Density' of a text.
-#     A low score indicates ambiguity/fluff. A high score indicates concrete facts.
-#     """
-#     doc = nlp(text)
-    
-#     # 1. Identify "Hard Facts" (Entities)
+# Resilience
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
-#     fact_types = {"ORG", "GPE", "DATE", "MONEY", "CARDINAL", "PERCENT", "PRODUCT"}
-    
-#     entities = [ent.text for ent in doc.ents if ent.label_ in fact_types]
-    
-#     # 2. Identify "Weak Phrases" 
+# Local Imports (Assumed to exist based on your code)
+from prompts import (
+    CONTRADICTION_TEAM_PROMPT_TEMPLATE, 
+    VALUATION_RISK_PROBLEM_PROMPT_TEMPLATE, 
+    VALUATION_RISK_TEAM_PROMPT_TEMPLATE, 
+    TEAM_SCORING_AGENT_PROMPT, 
+    CONTRADICTION_PROBLEM_PROMPT_TEMPLATE, 
+    PROBLEM_SCORING_AGENT_PROMPT
+)
+from helpers import load_schema
 
-#     weak_phrases = {
-#         "aim to", "hope", "believe", "visionary", "disruptive", "passionate",
-#         "approximately", "roughly", "trying", "unique", "cutting-edge"
-#     }
-#     found_weakness = [token.text for token in doc if token.text.lower() in weak_phrases]
-    
-#     # 3. Calculate Density Score
-#     word_count = len(doc)
-#     if word_count == 0:
-#         return {"score": 0, "status": "Empty Text"}
-        
-#     # Density = (Facts / Total Words)
-#     # Typical "Good" Pitch > 0.10 (1 fact per 10 words)
-#     density_score = len(entities) / word_count
-    
-#     return {
-#         "density_score": round(density_score, 3), # Higher is better
-#         "is_ambiguous": density_score < 0.08,     # Threshold for "Fluff"
-#         "fact_count": len(entities),
-#         "word_count": word_count,
-#         "extracted_facts": entities[:5],          # Return top 5 facts for LLM context
-#         "flagged_weak_phrases": list(set(found_weakness))
-#     }
+# Load Environment Variables
+load_dotenv()
 
-# @tool
-# def verify_founder_claims(query: str):
-#     """
-#     Searches Google to verify founder claims. 
-#     Use specific queries like 'Name Company Role'.
-#     """
-#     search = GoogleSearchAPIWrapper(k=3) # Top 3 results
-#     try:
-#         results = search.run(query)
-#         if not results or "No good Google Search Result" in results:
-#             return "No verification found online."
-#         return results
-#     except Exception as e:
-#         return f"Search Error: {e}"
-    
+# --- CONFIGURATION ---
+RETRY_CONFIG = {
+    "wait": wait_exponential(multiplier=2, min=10, max=120),
+    "stop": stop_after_attempt(20),
+    "retry": retry_if_exception_type((ResourceExhausted, ChatGoogleGenerativeAIError))
+}
 
-# @tool
+# --- TOOLS & AGENTS ---
+
 def check_missing_fields(data, parent_path=""):
-    '''Recursively checks for empty values in a nested JSON object.
-
-    This function traverses the input dictionary or list to identify fields 
-    that are None, empty strings (""), empty lists ([]), or empty dictionaries ({}).
-
-    Params:
-        data - The parsed JSON object (dict or list) to validate.
-        parent_path - The dot-notation path to the current field during recursion. Defaults to "".
-
-    Returns:
-        list[str] - A list of error strings identifying the specific path of missing data.
-
-    Raises:
-        RecursionError: raises if the JSON structure is too deep (exceeds recursion limit).
-    '''
+    '''Recursively checks for empty values in a nested JSON object.'''
     missing_errors = []
 
     if isinstance(data, dict):
@@ -111,66 +58,30 @@ def check_missing_fields(data, parent_path=""):
 
     return missing_errors
 
-
-# @tool
-def contradiction_check(data: dict) -> str:
-    '''Uses Google Gemini Flash to detect logical contradictions in startup data.
-
-    This function first validates the input against 'schema.json'.
-    If valid, it identifies logical impossibilities (Timeline, Financial, Consistency).
-
-    Params:
-        data - The full, flattened JSON object representing the startup profile.
-
-    Returns:
-        str - A formatted list of contradictions (bullet points) or "No contradictions found."
-
-    Raises:
-        ValidationError: raises if the input data does not match schema.json.
-        GoogleAPIError: raises if the Gemini API key is missing.
-    '''
-    
-    # 1. SETUP MODEL
+@retry(**RETRY_CONFIG)
+def contradiction_check(data: dict, agent_prompt: str) -> str:
+    '''Uses Google Gemini Flash to detect logical contradictions in startup data.'''
     llm_flash = ChatGoogleGenerativeAI(
         model="gemini-2.5-flash",
         temperature=0, 
         google_api_key=os.environ.get("GEMINI_API_KEY") 
     )
 
-    # 2. CREATE PROMPT OBJECT
-    prompt = PromptTemplate.from_template(CONTRADICTION_TEAM_PROMPT_TEMPLATE)
+    prompt = PromptTemplate.from_template(agent_prompt)
     
-    # 3. EXECUTE CHAIN
     try:
         chain = prompt | llm_flash | StrOutputParser()
-        
         result = chain.invoke({
             "current_date": datetime.now().strftime("%Y-%m-%d"),
             "json_data": json.dumps(data, indent=2) 
         })
         return result
-
     except Exception as e:
         return f"Error performing Contradiction Check: {str(e)}"
 
-#@tool
+@retry(**RETRY_CONFIG)
 def risk_check(data: dict, agent_prompt: str) -> str:
-    '''Identifies specific investment risks using Berkus and YC methodologies.
-
-    This function uses an LLM to critique the startup's founder profile, 
-    cap table, execution speed, and market insight to find reasons an investor might say "No".
-
-    Params:
-        data - The full, flattened JSON object representing the startup profile.
-
-    Returns:
-        str - A formatted list of risks (bullet points) generated by the LLM.
-
-    Raises:
-        GoogleAPIError: raises if the API key is invalid.
-    '''
-    
-    # 1. SETUP MODEL
+    '''Identifies specific investment risks.'''
     llm_flash = ChatGoogleGenerativeAI(
         model="gemini-2.5-flash",
         temperature=0, 
@@ -179,139 +90,25 @@ def risk_check(data: dict, agent_prompt: str) -> str:
 
     prompt = PromptTemplate.from_template(agent_prompt)
 
-    # 3. EXECUTE CHAIN
     try:
         chain = prompt | llm_flash | StrOutputParser()
-        
         result = chain.invoke({
             "json_data": json.dumps(data, indent=2)
         })
         return result
-
     except Exception as e:
         return f"Error performing Risk Check: {str(e)}"
-    
 
-# @tool
-def problem_risk_check(problem_data: dict, search_results: dict) -> str:
-    """
-    Analyzes the startup's problem statement for critical risks (Market Education, Timing, Clarity).
-    Crucially, it cross-references the founder's claims with real-world Web Search results 
-    to validate if the pain is real or imaginary.
-
-    Params:
-        problem_data (dict): Section 3 of the schema (Problem Definition).
-        search_results (dict): Output from the 'verify_problem_claims' tool.
-
-    Returns:
-        str: A bulleted list of verified risks with evidence.
-    """
-
-    # 1. SETUP MODEL
-    llm_flash = ChatGoogleGenerativeAI(
-        model="gemini-2.5-flash",
-        temperature=0,
-        google_api_key=os.environ.get("GEMINI_API_KEY")
-    )
-
-    
-
-    prompt = PromptTemplate.from_template(VALUATION_RISK_PROBLEM_PROMPT_TEMPLATE)
-
-    # 3. EXECUTE CHAIN
-    try:
-        chain = prompt | llm_flash | StrOutputParser()
-
-        # Format inputs as strings
-        internal_str = json.dumps(problem_data, indent=2)
-        external_str = json.dumps(search_results, indent=2)
-
-        result = chain.invoke({
-            "internal_json": internal_str,
-            "external_search_json": external_str
-        })
-        return result
-
-    except Exception as e:
-        return f"## Problem Risks\n* **System Error**: Could not perform risk check.\n  * *Evidence:* {str(e)}"
-# @tool
-def final_scoring_agent(data_package: dict) -> dict:
-    """
-    Synthesizes reports from Risk, Contradiction, and Missing Info agents
-    to assign a final investment score.
-
-    Params:
-        data_package (dict): A dictionary containing:
-            - 'user_data': The raw startup JSON.
-            - 'risk_report': String output from risk_check.
-            - 'contradiction_report': String output from contradiction_check.
-            - 'missing_report': List or String from check_missing_fields.
-
-    Returns:
-        dict: A JSON object containing:
-            - 'title': "Founder Market Fit Evaluation"
-            - 'score': "X.X / 5.0"
-            - 'explanation': Synthesized reasoning including contradictions/missing info.
-            - 'risks': List of key risks identified.
-    """
-    
-    # 1. SETUP MODEL
-    llm_flash = ChatGoogleGenerativeAI(
-        model="gemini-2.5-flash",
-        temperature=0, 
-        google_api_key=os.environ.get("GEMINI_API_KEY")
-    )
-
-
-    prompt = PromptTemplate.from_template(SCORING_AGENT_PROMPT)
-
-    # 3. EXECUTE CHAIN
-    try:
-        chain = prompt | llm_flash | JsonOutputParser()
-        
-        # Safe extraction of inputs
-        user_data_str = json.dumps(data_package.get("user_data", {}), indent=2)
-        risk_out = str(data_package.get("risk_report", "None"))
-        contra_out = str(data_package.get("contradiction_report", "None"))
-        missing_out = str(data_package.get("missing_report", "None"))
-
-        result_dict = chain.invoke({
-            "user_json_data": user_data_str,
-            "risk_agent_output": risk_out,
-            "contradiction_agent_output": contra_out,
-            "missing_info_output": missing_out
-        })
-
-        
-        
-        return result_dict
-
-    except Exception as e:
-        return {
-           
-            "result": f"System Error: {str(e)}",
-          
-        }
-
-
-# @tool
-
+@retry(**RETRY_CONFIG)
 def verify_problem_claims(problem_statement: str, target_audience: str) -> dict:
-    """
-    Performs a targeted web search to verify if a startup's problem is real.
-    
-    UPDATED LOGIC:
-    Generates 3 types of queries to ensure we find "Symptom" discussions, 
-    even if the founder uses complex technical jargon.
-    """
-    
+    """Performs a targeted web search to verify if a startup's problem is real."""
     api_key = os.environ.get("SERPER_API_KEY")
     google_api_key = os.environ.get("GEMINI_API_KEY")
     
     if not api_key:
         return {"error": "Missing SERPER_API_KEY."}
 
-    # --- STEP 1: GENERATE 3 OPTIMIZED QUERIES ---
+    # STEP 1: GENERATE QUERIES
     llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", google_api_key=google_api_key)
     
     query_gen_prompt = f"""
@@ -323,30 +120,25 @@ def verify_problem_claims(problem_statement: str, target_audience: str) -> dict:
     Output JSON ONLY:
     {{
         "pain_query": "Find forum discussions (Reddit/Quora) using specific keywords from the problem.",
-        "symptom_query": "Find discussions describing the FEELING of the problem using SIMPLE, NON-TECHNICAL words. (e.g. if problem is 'Alpha Wave Optimization', search for 'Brain fog afternoon crash').",
+        "symptom_query": "Find discussions describing the FEELING of the problem using SIMPLE, NON-TECHNICAL words.",
         "solution_query": "Find existing competitors or software solutions."
     }}
     """
     
     try:
-        # Generate the queries
         query_response = llm.invoke(query_gen_prompt)
-        
-        # Parse the JSON output
         clean_json = query_response.content.replace("```json", "").replace("```", "").strip()
         queries = json.loads(clean_json)
         
         pain_q = queries.get("pain_query", f"{problem_statement} reddit")
         symptom_q = queries.get("symptom_query", f"{target_audience} struggle reddit")
         sol_q = queries.get("solution_query", f"solution for {problem_statement}")
-        
-    except Exception as e:
-        # Fallback if LLM fails
+    except Exception:
         pain_q = f"{target_audience} {problem_statement} reddit"
         symptom_q = f"{target_audience} struggle help forum"
         sol_q = f"best solution for {problem_statement}"
 
-    # --- STEP 2: EXECUTE SERPER SEARCH ---
+    # STEP 2: EXECUTE SEARCH
     url = "https://google.serper.dev/search"
     headers = {'X-API-KEY': api_key, 'Content-Type': 'application/json'}
     
@@ -360,7 +152,6 @@ def verify_problem_claims(problem_statement: str, target_audience: str) -> dict:
         "competitor_search": []
     }
 
-    # Helper function to run search
     def run_search(query):
         try:
             resp = requests.post(url, headers=headers, data=json.dumps({"q": query, "num": 4}))
@@ -373,96 +164,204 @@ def verify_problem_claims(problem_statement: str, target_audience: str) -> dict:
             return []
         return []
 
-    # Search 1: Technical Pain (Original)
     results_report["pain_validation_search"].extend(run_search(pain_q))
-    
-    # Search 2: Human Symptom (NEW - This fixes the "Uneducated" Risk)
-    # We append these results to 'pain_validation_search' so the Risk Agent sees them.
     results_report["pain_validation_search"].extend(run_search(symptom_q))
-
-    # Search 3: Competitors
     results_report["competitor_search"] = run_search(sol_q)
 
     return results_report
 
+@retry(**RETRY_CONFIG)
+def problem_risk_check(problem_data: dict, search_results: dict) -> str:
+    """Analyzes problem statement risks cross-referencing search results."""
+    llm_flash = ChatGoogleGenerativeAI(
+        model="gemini-2.5-flash",
+        temperature=0,
+        google_api_key=os.environ.get("GEMINI_API_KEY")
+    )
 
-# --- TEST BLOCK ---
+    prompt = PromptTemplate.from_template(VALUATION_RISK_PROBLEM_PROMPT_TEMPLATE)
+
+    try:
+        chain = prompt | llm_flash | StrOutputParser()
+        result = chain.invoke({
+            "internal_json": json.dumps(problem_data, indent=2),
+            "external_search_json": json.dumps(search_results, indent=2)
+        })
+        return result
+    except Exception as e:
+        return f"## Problem Risks\n* **System Error**: Could not perform risk check.\n  * *Evidence:* {str(e)}"
+
+@retry(**RETRY_CONFIG)
+def team_scoring_agent(data_package: dict) -> dict:
+    """Synthesizes Team reports to assign a final investment score."""
+    llm_flash = ChatGoogleGenerativeAI(
+        model="gemini-2.5-flash",
+        temperature=0, 
+        google_api_key=os.environ.get("GEMINI_API_KEY")
+    )
+
+    prompt = PromptTemplate.from_template(TEAM_SCORING_AGENT_PROMPT)
+
+    try:
+        chain = prompt | llm_flash | JsonOutputParser()
+        
+        result_dict = chain.invoke({
+            "user_json_data": json.dumps(data_package.get("user_data", {}), indent=2),
+            "risk_agent_output": str(data_package.get("risk_report", "None")),
+            "contradiction_agent_output": str(data_package.get("contradiction_report", "None")),
+            "missing_info_output": str(data_package.get("missing_report", "None"))
+        })
+        return result_dict
+    except Exception as e:
+        return {"result": f"System Error: {str(e)}"}
+
+@retry(**RETRY_CONFIG)
+def problem_scoring_agent(data_package: dict) -> str:
+    """Synthesizes Problem reports to assign a final score."""
+    llm_flash = ChatGoogleGenerativeAI(
+        model="gemini-2.5-flash",
+        temperature=0, 
+        google_api_key=os.environ.get("GEMINI_API_KEY")
+    )
+
+    prompt = PromptTemplate.from_template(PROBLEM_SCORING_AGENT_PROMPT)
+    chain = prompt | llm_flash | JsonOutputParser()
+    
+    result_dict = chain.invoke({
+        "problem_json": json.dumps(data_package.get("problem_definition", {}), indent=2),
+        "missing_report": str(data_package.get("missing_report", "None")),
+        "search_json": json.dumps(data_package.get("search_report", {}), indent=2),
+        "risk_report": str(data_package.get("risk_report", "None")),
+        "contradiction_report": str(data_package.get("contradiction_report", "None"))
+    })
+
+    evidence_formatted = "\n".join([f"- {e}" for e in result_dict.get('evidence_used', [])])
+    
+    final_text = (
+        f"{result_dict.get('title', 'Problem Evaluation')}\n"
+        f"Score: {result_dict.get('score', 'N/A')} - {result_dict.get('rubric_definition', '')}\n"
+        f"Confidence: {result_dict.get('confidence_level', 'Unknown')}\n\n"
+        f"Explanation:\n{result_dict.get('explanation', 'No explanation.')}\n\n"
+        f"Key Evidence:\n{evidence_formatted}"
+    )
+    return final_text
+
+
+# --- MAIN EXECUTION PIPELINE ---
 if __name__ == "__main__":
     
     # 1. Load Data
-    print("Loading data from schema.json...")
+    print("📂 Loading data from schema.json...")
     input_data = load_schema("schema.json")
     
     if not input_data:
         print("❌ Error: Could not load schema.json. Using dummy data.")
-        input_data = {"startup_evaluation": {}} # Dummy fallback
-
-    # # ---------------------------------------------------------
-    # # TEST 1: Contradiction Check (Returns Markdown String)
-    # # ---------------------------------------------------------
-    # print("\n" + "="*40)
-    # print("🤖 RUNNING CONTRADICTION CHECK")
-    # print("="*40)
+        input_data = {"startup_evaluation": {}}
     
-    # try:
-    #     # Note: If running locally without LangGraph, we call the function directly
-    #     contradiction_result = contradiction_check(input_data)
-    #     print(contradiction_result)
-
-    # except Exception as e:
-    #     print(f"❌ Execution Error (Contradiction): {e}")
-
-    # # ---------------------------------------------------------
-    # # TEST 2: Risk Check (Returns Markdown String)
-    # # ---------------------------------------------------------
-    # print("\n" + "="*40)
-    # print("📉 RUNNING RISK CHECK")
-    # print("="*40)
-
-    # try:
-    #     risk_result = risk_check(input_data, agent_prompt=VALUATION_RISK_TEAM_PROMPT_TEMPLATE)
-    #     print(risk_result)
-
-    # except Exception as e:
-    #     print(f"❌ Execution Error (Risk): {e}")
+    start_time = time.time()
     
-    # # ---------------------------------------------------------
-    # # TEST 3: Scoring Agent
-    # # ---------------------------------------------------------
-    # print("\n" + "="*40)
-    # print("🏆 RUNNING FINAL SCORING AGENT")
-    # print("="*40)
+    # Check Missing Fields (Global)
+    missing_fields_result = check_missing_fields(input_data)
 
-    # # Mock Data Package (Simulating what the previous nodes produced)
-    # test_package = {
-    #     "user_data": input_data,
-    #     "risk_report": "## Risks\n* **Solo Founder Risk**: Tarek owns 100% equity.\n* **Tech Risk**: No CTO.",
-    #     "contradiction_report": "No contradictions found.",
-    #     "missing_report": ["Missing Value: 'linkedin_url' is empty."]
-    # }
+    # =========================================================
+    # PHASE 1: TEAM EVALUATION
+    # =========================================================
+    print("\n" + "="*50)
+    print("👥 PHASE 1: TEAM EVALUATION AGENT")
+    print("="*50)
 
-    # try:
-    #     final_score = final_scoring_agent(test_package)
-    #     print(json.dumps(final_score, indent=2)) 
-        
-    # except Exception as e:
-    #     print(f"❌ Execution Error: {e}")
-    # Extracting arguments from your loaded JSON data
-    problem_def = input_data["startup_evaluation"]["problem_definition"]
+    # A. Contradiction Check
+    print("\n🤖 Running Team Contradiction Check...")
+    try:
+        team_contradiction_result = contradiction_check(input_data, agent_prompt=CONTRADICTION_TEAM_PROMPT_TEMPLATE)
+        print("   -> Done.")
+    except Exception as e:
+        print(f"❌ Execution Error (Contradiction): {e}")
+        team_contradiction_result = "Error."
 
-    # 2. RUN SEARCH (The Reality Check)
-    print("🔎 Searching for evidence...")
-    search_output = verify_problem_claims(
-        problem_statement=problem_def["problem_statement"],
-        target_audience=problem_def["customer_profile"]["role"]
-    )
-    print(json.dumps(search_output, indent=2))
+    # B. Risk Check
+    print("\n📉 Running Team Risk Check...")
+    try:
+        team_risk_result = risk_check(input_data, agent_prompt=VALUATION_RISK_TEAM_PROMPT_TEMPLATE)
+        print("   -> Done.")
+    except Exception as e:
+        print(f"❌ Execution Error (Risk): {e}")
+        team_risk_result = "Error."
+    
+    # C. Scoring Agent
+    print("\n🏆 Running Team Scoring Agent...")
+    try:
+        team_package = {
+            "user_data": input_data,
+            "risk_report": team_risk_result,
+            "contradiction_report": team_contradiction_result,
+            "missing_report": missing_fields_result
+        }
+        final_team_score = team_scoring_agent(team_package)
+        print(json.dumps(final_team_score, indent=2))
+    except Exception as e:
+        print(f"❌ Execution Error (Team Scoring): {e}")
 
-    # 3. RUN RISK CHECK (The Analysis)
-    print("📉 Analyzing Risks...")
-    risk_report = problem_risk_check(
-        problem_data=problem_def,
-        search_results=search_output
-    )
+    # =========================================================
+    # PHASE 2: PROBLEM EVALUATION
+    # =========================================================
+    print("\n" + "="*50)
+    print("🧩 PHASE 2: PROBLEM EVALUATION AGENT")
+    print("="*50)
 
-    print(risk_report)
+    problem_def = input_data.get("startup_evaluation", {}).get("problem_definition", {})
+    
+    # A. Search Validation
+    print("\n🔎 Searching for Evidence (Problem Validation)...")
+    if problem_def:
+        search_output = verify_problem_claims(
+            problem_statement=problem_def.get("problem_statement", ""),
+            target_audience=problem_def.get("customer_profile", {}).get("role", "")
+        )
+        print("   -> Search Complete.")
+    else:
+        print("⚠️ No problem definition found.")
+        search_output = {}
+
+    # B. Risk Check (Problem Specific)
+    print("\n📉 Analyzing Problem Risks...")
+    try:
+        problem_risk_report = problem_risk_check(
+            problem_data=problem_def,
+            search_results=search_output
+        )
+        print("   -> Done.")
+    except Exception as e:
+        problem_risk_report = f"Error: {e}"
+
+    # C. Contradiction Check (Problem Specific)
+    print("\n🤖 Running Problem Contradiction Check...")
+    try:
+        problem_contradiction_result = contradiction_check(input_data, agent_prompt=CONTRADICTION_PROBLEM_PROMPT_TEMPLATE)
+        print("   -> Done.")
+    except Exception as e:
+        print(f"❌ Execution Error (Contradiction): {e}")
+        problem_contradiction_result = "Contradiction Check Failed."
+    
+    # D. Scoring Agent
+    print("\n🏆 Running Problem Scoring Agent...")
+    try:
+        problem_data_package = {
+            "problem_definition": problem_def,
+            "missing_report": missing_fields_result,
+            "search_report": search_output,
+            "risk_report": problem_risk_report,
+            "contradiction_report": problem_contradiction_result
+        }
+        final_problem_score = problem_scoring_agent(problem_data_package)
+        print(final_problem_score)
+    except Exception as e:
+        print(f"❌ Execution Error (Problem Scoring): {e}")
+
+    # =========================================================
+    # FINISH
+    # =========================================================
+    end_time = time.time()
+    execution_time = end_time - start_time
+    print("\n" + "="*50)
+    print(f"✅ Pipeline finished in {execution_time:.2f} seconds")
