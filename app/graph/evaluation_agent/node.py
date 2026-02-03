@@ -1,6 +1,6 @@
-from app.graph.state import AgentState
+from .state import EvaluationState
 
-def evaluation_node(state: AgentState):
+def evaluation_node(state: EvaluationState):
     """
     Evaluates the input project/idea.
     """

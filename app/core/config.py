@@ -1,14 +1,12 @@
-from pydantic_settings import BaseSettings
-from dotenv import load_dotenv
 import os
+from dotenv import load_dotenv
 
 load_dotenv()
 
-class Settings(BaseSettings):
-    OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
-    TAVILY_API_KEY: str = os.getenv("TAVILY_API_KEY", "")
+class Config:
+    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+    GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-flash-latest")
+    GEMINI_TEMPERATURE = float(os.getenv("GEMINI_TEMPERATURE", "0.7"))
+    MAX_ITERATIONS = int(os.getenv("MAX_ITERATIONS", "2"))
 
-    class Config:
-        env_file = ".env"
-
-settings = Settings()
+config = Config()
