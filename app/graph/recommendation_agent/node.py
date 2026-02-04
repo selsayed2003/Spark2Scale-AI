@@ -1,6 +1,6 @@
-from app.graph.state import AgentState
+from .state import RecommendationState
 
-def recommendation_node(state: AgentState):
+def recommendation_node(state: RecommendationState):
     """
     Provides recommendations based on the evaluation.
     """
