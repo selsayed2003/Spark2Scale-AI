@@ -1,4 +1,3 @@
-<<<<<<< HEAD:app/graph/nodes/evaluation_agent/state.py
 from typing import TypedDict, Annotated, Dict, Any, List, Union
 import operator
 
@@ -29,10 +28,3 @@ class AgentState(TypedDict):
     
     # General / Shared
     missing_report: Annotated[List[str], operator.add]
-=======
-from typing import TypedDict, Optional
-
-class EvaluationState(TypedDict):
-    input_idea: str
-    evaluation: Optional[str]
->>>>>>> origin/Salma:app/graph/evaluation_agent/state.py
