@@ -1,32 +1,9 @@
 import json
 import os
 import base64
-import time
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.chrome.service import Service
-from webdriver_manager.chrome import ChromeDriverManager
+import asyncio
+from playwright.async_api import async_playwright
 
-def load_schema(filename="schema.json"):
-    """
-    Loads a JSON schema file from the same directory as this script.
-    Returns the dict or None if file is missing/invalid.
-    """
-    try:
-        base_dir = os.path.dirname(os.path.abspath(__file__))
-        
-        file_path = os.path.join(base_dir, filename)
-        
-        with open(file_path, "r", encoding="utf-8") as f:
-            return json.load(f)
-            
-    except FileNotFoundError:
-        print(f"Warning: Could not find '{filename}' at {file_path}")
-        return None
-    except json.JSONDecodeError as e:
-        print(f"Error: '{filename}' contains invalid JSON. \nDetails: {e}")
-        return None
-    
 def extract_team_data(data):
     """
     Extracts fields for the Founder Market Fit Agent:
@@ -66,6 +43,7 @@ def extract_team_data(data):
             "gap": problem_section.get("gap_analysis")
         }
     }
+
 def extract_problem_data(data):
     """
     Extracts only the fields necessary for the Problem Evaluation Agent:
@@ -108,6 +86,7 @@ def extract_problem_data(data):
             for f in founder_section.get("founders", [])
         ]
     }
+
 def extract_product_data(data):
     return {
         # --- 1. COMPANY SNAPSHOT (ALL FIELDS) ---
@@ -147,48 +126,69 @@ def extract_product_data(data):
         "future_vision": data.get("vision_and_strategy", {}).get("future_view")
     }
 
+def check_missing_fields(data, parent_path=""):
+    '''Recursively checks for empty values in a nested JSON object to identify incomplete data.
+    
+    Params:
+        data - The dictionary or list to be scanned for missing values.
+        parent_path - A string tracking the nested key hierarchy for error reporting (defaults to empty string).
+        
+    Returns:
+        list - A list of strings, each detailing the path of a missing or empty field.
+    '''
+    missing_errors = []
 
-def capture_screenshot(url: str):
+    if isinstance(data, dict):
+        for key, value in data.items():
+            current_path = f"{parent_path}.{key}" if parent_path else key
+
+            if value is None or value == "" or value == [] or value == {}:
+                missing_errors.append(f"Missing Value: Field '{current_path}' is empty.")
+            else:
+                missing_errors.extend(check_missing_fields(value, current_path))
+
+    elif isinstance(data, list):
+        for index, item in enumerate(data):
+            item_path = f"{parent_path}[{index}]"
+            missing_errors.extend(check_missing_fields(item, item_path))
+
+    return missing_errors
+
+async def capture_screenshot(url: str):
     """
-    Visits a URL using Selenium and returns the screenshot as a Base64 string.
+    Visits a URL using Playwright (Async) and returns the screenshot as a Base64 string.
     """
-    print(f"📸 Visiting {url} for visual check...")
+    print(f"📸 Visiting {url} for visual check (Async)...")
     
     if not url:
         return {"error": "No URL provided."}
 
-    screenshot_path = "screenshot.png"
-    
     try:
-        chrome_options = Options()
-        chrome_options.add_argument("--headless") 
-        chrome_options.add_argument("--window-size=1280,720")
-        chrome_options.add_argument("--disable-gpu")
-        chrome_options.add_argument("--no-sandbox")
-        
-        service = Service(ChromeDriverManager().install())
-        driver = webdriver.Chrome(service=service, options=chrome_options)
-        driver.set_page_load_timeout(15)
-        
-        try:
-            driver.get(url)
-            time.sleep(3) # Wait for React/Vue
-            driver.save_screenshot(screenshot_path)
-            driver.quit()
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True)
+            # Create a context with a known viewport and user agent to mimic a real user
+            context = await browser.new_context(
+                viewport={'width': 1280, 'height': 720},
+                user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            )
+            page = await context.new_page()
             
-            # Convert to Base64 for LangChain
-            with open(screenshot_path, "rb") as image_file:
-                image_data = base64.b64encode(image_file.read()).decode("utf-8")
-            
-            # Cleanup
-            if os.path.exists(screenshot_path):
-                os.remove(screenshot_path)
+            try:
+                # Wait up to 15 seconds for load
+                await page.goto(url, wait_until="domcontentloaded", timeout=15000)
                 
-            return {"image_b64": image_data, "status": "Success"}
-
-        except Exception as e:
-            driver.quit()
-            return {"error": f"Timeout/Access Error: {str(e)}"}
+                # Small delay to ensure any JS rendering stabilizes
+                await asyncio.sleep(3)
+                
+                screenshot_bytes = await page.screenshot(type='png')
+                image_data = base64.b64encode(screenshot_bytes).decode("utf-8")
+                
+                return {"image_b64": image_data, "status": "Success"}
+                
+            except Exception as e:
+                return {"error": f"Timeout/Access Error: {str(e)}"}
+            finally:
+                await browser.close()
             
     except Exception as e:
-        return {"error": f"Driver Error: {str(e)}"}
+        return {"error": f"Playwright Driver Error: {str(e)}"}
