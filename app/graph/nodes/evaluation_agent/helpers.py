@@ -1,5 +1,3 @@
-import json
-import os
 import base64
 import asyncio
 from playwright.async_api import async_playwright
