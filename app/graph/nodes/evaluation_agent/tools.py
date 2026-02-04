@@ -32,7 +32,7 @@ from prompts import (
     VISUAL_VERIFICATION_PROMPT,
     PRODUCT_SCORING_AGENT_PROMPT
 )
-from helpers import load_schema, extract_product_data, capture_screenshot
+from helpers import extract_problem_data, extract_team_data, load_schema, extract_product_data, capture_screenshot
 
 # Load Environment Variables
 load_dotenv()
@@ -540,109 +540,111 @@ if __name__ == "__main__":
     # Check Missing Fields (Global)
     missing_fields_result = check_missing_fields(input_data)
 
-    # # =========================================================
-    # # PHASE 1: TEAM EVALUATION
-    # # =========================================================
-    # print("\n" + "="*50)
-    # print("👥 PHASE 1: TEAM EVALUATION AGENT")
-    # print("="*50)
+    # =========================================================
+    # PHASE 1: TEAM EVALUATION
+    # =========================================================
+    print("\n" + "="*50)
+    print("👥 PHASE 1: TEAM EVALUATION AGENT")
+    print("="*50)
+    team_scope_data = extract_team_data(input_data)
 
-    # # A. Contradiction Check
-    # print("\n🤖 Running Team Contradiction Check...")
-    # try:
-    #     team_contradiction_result = contradiction_check(input_data, agent_prompt=CONTRADICTION_TEAM_PROMPT_TEMPLATE)
-    #     print("   -> Done.")
-    # except Exception as e:
-    #     print(f"❌ Execution Error (Contradiction): {e}")
-    #     team_contradiction_result = "Error."
+    # A. Contradiction Check
+    print("\n🤖 Running Team Contradiction Check...")
+    try:
+        team_contradiction_result = contradiction_check(team_scope_data, agent_prompt=CONTRADICTION_TEAM_PROMPT_TEMPLATE)
+        print("   -> Done.")
+    except Exception as e:
+        print(f"❌ Execution Error (Contradiction): {e}")
+        team_contradiction_result = "Error."
 
-    # # B. Risk Check
-    # print("\n📉 Running Team Risk Check...")
-    # try:
-    #     team_risk_result = team_risk_check(input_data, agent_prompt=VALUATION_RISK_TEAM_PROMPT_TEMPLATE)
-    #     print("   -> Done.")
-    # except Exception as e:
-    #     print(f"❌ Execution Error (Risk): {e}")
-    #     team_risk_result = "Error."
+    # B. Risk Check
+    print("\n📉 Running Team Risk Check...")
+    try:
+        team_risk_result = team_risk_check(team_scope_data, agent_prompt=VALUATION_RISK_TEAM_PROMPT_TEMPLATE)
+        print("   -> Done.")
+    except Exception as e:
+        print(f"❌ Execution Error (Risk): {e}")
+        team_risk_result = "Error."
     
-    # # C. Scoring Agent
-    # print("\n🏆 Running Team Scoring Agent...")
-    # try:
-    #     team_package = {
-    #         "user_data": input_data,
-    #         "risk_report": team_risk_result,
-    #         "contradiction_report": team_contradiction_result,
-    #         "missing_report": missing_fields_result
-    #     }
-    #     final_team_score = team_scoring_agent(team_package)
-    #     print(json.dumps(final_team_score, indent=2))
-    # except Exception as e:
-    #     print(f"❌ Execution Error (Team Scoring): {e}")
+    # C. Scoring Agent
+    print("\n🏆 Running Team Scoring Agent...")
+    try:
+        team_package = {
+            "user_data": team_scope_data,
+            "risk_report": team_risk_result,
+            "contradiction_report": team_contradiction_result,
+            "missing_report": missing_fields_result
+        }
+        final_team_score = team_scoring_agent(team_package)
+        print(json.dumps(final_team_score, indent=2))
+    except Exception as e:
+        print(f"❌ Execution Error (Team Scoring): {e}")
 
-    # # =========================================================
-    # # PHASE 2: PROBLEM EVALUATION
-    # # =========================================================
-    # print("\n" + "="*50)
-    # print("🧩 PHASE 2: PROBLEM EVALUATION AGENT")
-    # print("="*50)
+    # =========================================================
+    # PHASE 2: PROBLEM EVALUATION
+    # =========================================================
+    print("\n" + "="*50)
+    print("🧩 PHASE 2: PROBLEM EVALUATION AGENT")
+    print("="*50)
+    problem_scope_data = extract_problem_data(input_data)
 
     problem_def = input_data.get("startup_evaluation", {}).get("problem_definition", {})
     
-    # # A. Search Validation
-    # print("\n🔎 Searching for Evidence (Problem Validation)...")
-    # if problem_def:
-    #     search_output = verify_problem_claims(
-    #         problem_statement=problem_def.get("problem_statement", ""),
-    #         target_audience=problem_def.get("customer_profile", {}).get("role", "")
-    #     )
-    #     print("   -> Search Complete.")
-    # else:
-    #     print("⚠️ No problem definition found.")
-    #     search_output = {}
+    # A. Search Validation
+    print("\n🔎 Searching for Evidence (Problem Validation)...")
+    if problem_def:
+        search_output = verify_problem_claims(
+            problem_statement=problem_def.get("problem_statement", ""),
+            target_audience=problem_def.get("customer_profile", {}).get("role", "")
+        )
+        print("   -> Search Complete.")
+    else:
+        print("⚠️ No problem definition found.")
+        search_output = {}
 
-    # # B. Risk Check (Problem Specific)
-    # print("\n📉 Analyzing Problem Risks...")
-    # try:
-    #     problem_risk_report = loaded_risk_check_with_search(
-    #         problem_data=problem_def,
-    #         search_results=search_output,
-    #         agent_prompt=VALUATION_RISK_PROBLEM_PROMPT_TEMPLATE
-    #     )
-    #     print("   -> Done.")
-    # except Exception as e:
-    #     problem_risk_report = f"Error: {e}"
+    # B. Risk Check (Problem Specific)
+    print("\n📉 Analyzing Problem Risks...")
+    try:
+        problem_risk_report = loaded_risk_check_with_search(
+            problem_data=problem_def,
+            search_results=search_output,
+            agent_prompt=VALUATION_RISK_PROBLEM_PROMPT_TEMPLATE
+        )
+        print("   -> Done.")
+    except Exception as e:
+        problem_risk_report = f"Error: {e}"
 
-    # # C. Contradiction Check (Problem Specific)
-    # print("\n🤖 Running Problem Contradiction Check...")
-    # try:
-    #     problem_contradiction_result = contradiction_check(input_data, agent_prompt=CONTRADICTION_PROBLEM_PROMPT_TEMPLATE)
-    #     print("   -> Done.")
-    # except Exception as e:
-    #     print(f"❌ Execution Error (Contradiction): {e}")
-    #     problem_contradiction_result = "Contradiction Check Failed."
+    # C. Contradiction Check (Problem Specific)
+    print("\n🤖 Running Problem Contradiction Check...")
+    try:
+        problem_contradiction_result = contradiction_check(problem_scope_data, agent_prompt=CONTRADICTION_PROBLEM_PROMPT_TEMPLATE)
+        print("   -> Done.")
+    except Exception as e:
+        print(f"❌ Execution Error (Contradiction): {e}")
+        problem_contradiction_result = "Contradiction Check Failed."
     
-    # # D. Scoring Agent
-    # print("\n🏆 Running Problem Scoring Agent...")
-    # try:
-    #     problem_data_package = {
-    #         "problem_definition": problem_def,
-    #         "missing_report": missing_fields_result,
-    #         "search_report": search_output,
-    #         "risk_report": problem_risk_report,
-    #         "contradiction_report": problem_contradiction_result
-    #     }
-    #     final_problem_score = problem_scoring_agent(problem_data_package)
-    #     print(final_problem_score)
-    # except Exception as e:
-    #     print(f"❌ Execution Error (Problem Scoring): {e}")
+    # D. Scoring Agent
+    print("\n🏆 Running Problem Scoring Agent...")
+    try:
+        problem_data_package = {
+            "problem_definition": problem_def,
+            "missing_report": missing_fields_result,
+            "search_report": search_output,
+            "risk_report": problem_risk_report,
+            "contradiction_report": problem_contradiction_result
+        }
+        final_problem_score = problem_scoring_agent(problem_data_package)
+        print(final_problem_score)
+    except Exception as e:
+        print(f"❌ Execution Error (Problem Scoring): {e}")
 
 
 
     # =========================================================
-    # PHASE 2: PRODUCT EVALUATION
+    # PHASE 3: PRODUCT EVALUATION
     # =========================================================
     print("\n" + "="*50)
-    print("🧩 PHASE 2: PRODUCT EVALUATION AGENT")
+    print("🧩 PHASE 3: PRODUCT EVALUATION AGENT")
     print("="*50)
 
     print("✂️  Extracting Product-Specific Context...")
