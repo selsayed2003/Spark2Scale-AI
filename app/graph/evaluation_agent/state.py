@@ -9,22 +9,21 @@ class AgentState(TypedDict):
     user_data: Dict[str, Any]
     
     # --- OUTPUTS ---
-    plan: Annotated[dict, replace_reducer] # Validation Plan
-    
-    # Team Branch Output
+    # Team Branch
     team_report: Annotated[Dict[str, Any], operator.ior]
     
-    # Problem Branch Output
-    problem_report: Annotated[str, replace_reducer]
+    # Problem Branch
+    problem_report: Annotated[Dict[str, Any], replace_reducer]
     search_results: Annotated[Dict[str, Any], operator.ior]
-    risk_report: Annotated[str, replace_reducer] # For problem risk
-    contradiction_report: Annotated[str, replace_reducer] # For problem contradiction
+    problem_risk_report: Annotated[str, replace_reducer]
+    problem_contradiction: Annotated[str, replace_reducer]
     
-    # Product Branch Output
+    # Product Branch (Fan-Out Outputs)
     tech_stack: Annotated[Dict[str, Any], operator.ior]
     visual_analysis: Annotated[str, replace_reducer]
-    product_contradiction: Annotated[str, replace_reducer] # Distinct key for product
-    product_report: Annotated[str, replace_reducer]
+    product_contradiction: Annotated[str, replace_reducer]
+    product_risk_report: Annotated[str, replace_reducer]
+    product_report: Annotated[Dict[str, Any], replace_reducer]
     
-    # General / Shared
+    # Shared
     missing_report: Annotated[List[str], operator.add]

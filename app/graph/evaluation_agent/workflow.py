@@ -9,6 +9,11 @@ from .node import (
     product_tools_node,
     product_scoring_node
 )
+# --- NEW IMPORT ---
+from app.core.logger import get_logger
+
+# --- INITIALIZE LOGGER ---
+logger = get_logger(__name__)
 
 # 1. Initialize Graph
 workflow = StateGraph(AgentState)
@@ -49,16 +54,16 @@ async def run_pipeline(user_data):
     start_time = time.time()
     initial_state = {"user_data": user_data}
     
-    print("🚀 Starting Logic Graph Execution...")
+    logger.info("🚀 Starting Logic Graph Execution...")
     try:
         result = await app.ainvoke(initial_state)
     except Exception as e:
-        print(f"🔥 Graph Execution Error: {e}")
+        logger.error(f"🔥 Graph Execution Error: {e}", exc_info=True)
         raise e
         
     end_time = time.time()
     duration = end_time - start_time
-    print(f"✅ Graph Finished in {duration:.2f} seconds.")
+    logger.info(f"✅ Graph Finished in {duration:.2f} seconds.")
     
     # Inject timing info into result if needed, or just return result
     # result["_execution_time"] = duration 
@@ -74,6 +79,6 @@ def save_graph_image(file_path="graph_visualization.png"):
         png_data = app.get_graph().draw_mermaid_png()
         with open(file_path, "wb") as f:
             f.write(png_data)
-        print(f"🖼️ Graph visualization saved to {file_path}")
+        logger.info(f"🖼️ Graph visualization saved to {file_path}")
     except Exception as e:
-        print(f"⚠️ Could not save graph image: {e}")
+        logger.error(f"⚠️ Could not save graph image: {e}")
