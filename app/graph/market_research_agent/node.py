@@ -1,6 +1,6 @@
-from app.graph.state import AgentState
+from .state import MarketResearchState
 
-def market_research_node(state: AgentState):
+def market_research_node(state: MarketResearchState):
     """
     Conducts market research.
     """
