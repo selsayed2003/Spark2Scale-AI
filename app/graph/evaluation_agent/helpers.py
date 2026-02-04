@@ -1,6 +1,25 @@
+import json
 import base64
 import asyncio
 from playwright.async_api import async_playwright
+from app.core.logger import get_logger
+
+# --- INITIALIZE LOGGER ---
+logger = get_logger(__name__)
+
+
+def load_schema(schema_name: str) -> str:
+    """
+    Loads a JSON schema from the schema.json file.
+    """
+    import os
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    schema_path = os.path.join(current_dir, "schema.json")
+    
+    with open(schema_path, "r") as f:
+        schemas = json.load(f)
+        
+    return json.dumps(schemas.get(schema_name, {}), indent=2)
 
 def extract_team_data(data):
     """
@@ -156,7 +175,7 @@ async def capture_screenshot(url: str):
     """
     Visits a URL using Playwright (Async) and returns the screenshot as a Base64 string.
     """
-    print(f"📸 Visiting {url} for visual check (Async)...")
+    logger.info(f"📸 Visiting {url} for visual check (Async)...")
     
     if not url:
         return {"error": "No URL provided."}
