@@ -186,6 +186,73 @@ def extract_market_data(data):
         }
     }
 
+
+def extract_traction_data(data):
+    """
+    Extracts traction metrics tailored strictly to the company's stage (Pre-Seed vs. Seed).
+    """
+    root = data.get("startup_evaluation", {})
+    snapshot = root.get("company_snapshot", {})
+    
+    # 1. Determine Stage
+    # Normalize to lowercase to avoid "Pre-Seed" vs "Pre-seed" issues
+    stage_raw = snapshot.get("current_stage", "Pre-Seed").lower()
+    
+    # 2. Base Context (Needed for both)
+    base_context = {
+        "stage": snapshot.get("current_stage"),
+        "founded_date": snapshot.get("date_founded"),
+        "execution_velocity": root.get("founder_and_team", {}).get("execution", {}).get("key_shipments", [])
+    }
+    
+    # 3. Source Sections
+    traction = root.get("traction_metrics", {})
+    gtm = root.get("gtm_strategy", {})
+    biz = root.get("business_model", {})
+
+    # ==========================================
+    # PATH A: PRE-SEED TRACTION (Validation Focus)
+    # ==========================================
+    if "pre" in stage_raw:
+        return {
+            "analysis_type": "Pre-Seed Validation",
+            "context": base_context,
+            "validation_signals": {
+                "users_total": traction.get("user_count", 0),
+                "users_active": traction.get("active_users_monthly", 0),
+                "partnerships_lois": traction.get("partnerships_and_lois", []), # "Who have you tested with?"
+                "early_revenue": traction.get("early_revenue", "0"),
+                "waitlist_status": "Implied from user count" if traction.get("user_count", 0) > 0 else "None"
+            },
+            # Patent check (from Product section)
+            "defensibility": root.get("product_and_solution", {}).get("defensibility_moat", "None")
+        }
+
+    # ==========================================
+    # PATH B: SEED TRACTION (Growth Focus)
+    # ==========================================
+    else:
+        return {
+            "analysis_type": "Seed Growth",
+            "context": base_context,
+            "growth_metrics": {
+                "mrr": traction.get("early_revenue"), # In Seed, this field usually holds MRR
+                "growth_rate_mom": traction.get("revenue_growth_rate", "Not specified"),
+                "retention_metrics": traction.get("retention_metrics", "Not specified"),
+                "paid_users": traction.get("paying_customer_count", 0),
+                "unit_economics": {
+                    "acv": biz.get("average_price_per_customer"),
+                    "cac_hint": "Infer from marketing spend if available" # Placeholder as specific CAC field isn't in form
+                }
+            },
+            "sales_machine": {
+                "closer": gtm.get("deal_closer"), # Red flag check: Is founder still doing 100%?
+                "channel": gtm.get("primary_acquisition_channel"),
+                "sales_cycle": gtm.get("average_sales_cycle"),
+                "conversion_friction": "Low" if gtm.get("sales_motion") == "Self-serve" else "High"
+            }
+        }
+
 def capture_screenshot(url: str):
     """
     Visits a URL using Selenium and returns the screenshot as a Base64 string.

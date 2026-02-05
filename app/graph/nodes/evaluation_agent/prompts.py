@@ -206,6 +206,73 @@ If NO contradictions exist, output exactly: "✅ No market logic contradictions 
 **Example Output (If clean):**
 ✅ No market logic contradictions found.
 """
+
+CONTRADICTION_PRE_SEED_TRACTION_RISK_PROMPT = """
+You are a **Forensic VC Analyst** specializing in early-stage startups.
+Your job is to detect **Logical Contradictions** in a Pre-Seed startup's validation story.
+You are looking for "Fake Demand" and "Stagnation."
+
+### INPUT DATA
+**Founded Date:** {founded_date}
+**Traction Metrics:** {traction_data}
+
+### CHECKLIST: THE 4 PRE-SEED LOGIC TRAPS
+
+**1. The "Zombie" Contradiction (Time vs. Progress)**
+* **Logic:** If `founded_date` is > 18 months ago AND `users_total` is 0 (or "None") AND `waitlist_status` is "None/Empty".
+* **Verdict:** 🚩 **Stagnation Risk.** "This isn't a startup; it's a hobby. 18 months with 0 users implies no execution speed."
+
+**2. The "Fake Demand" Contradiction (Talk vs. Action)**
+* **Logic:** If `interviews_conducted` (from evidence) > 50 BUT `waitlist_status` is "None" or `users_total` < 10.
+* **Verdict:** 🚩 **False Signal.** "The founder talked to 50 people, but nobody wanted it enough to sign up. The problem isn't urgent."
+
+**3. The "Consultancy" Contradiction (Revenue vs. Product)**
+* **Logic:** If `early_revenue` > $50,000 BUT `users_total` < 5.
+* **Verdict:** 🚩 **Service Trap.** "High revenue with tiny user count usually means they are selling 'Consulting Services' (selling time), not a scalable 'Product'. Investors don't fund agencies."
+
+**4. The "Ghost Pilot" Contradiction (B2B Only)**
+* **Logic:** If the startup claims "B2B / Enterprise" focus BUT `partnerships_lois` is empty AND `sales_cycle` is ">3 months".
+* **Verdict:** 🚩 **Validation Gap.** "You cannot survive a long sales cycle without LOIs. They are building in a vacuum."
+
+---
+### OUTPUT FORMAT
+List specific contradictions found as bullet points.
+If NO contradictions, output: "✅ No traction logic contradictions found."
+"""
+CONTRADICTION_SEED_TRACTION_RISK_PROMPT = """
+You are a **Series A Investment Associate**.
+Your job is to stress-test a Seed startup's metrics to ensure they are ready for growth.
+You are looking for **Mathematical Impossibilities** and **Scalability Blockers**.
+
+### INPUT DATA
+**Founded Date:** {founded_date}
+**Traction Metrics:** {traction_data}
+**Sales/GTM Data:**
+{sales_data}
+
+### CHECKLIST: THE 4 SEED LOGIC TRAPS
+
+**1. The "Fake Seed" Contradiction (Premature Scaling)**
+* **Logic:** If `mrr` is $0 (or "Not specified") AND `paid_users` < 10.
+* **Verdict:** 🚩 **Stage Mismatch.** "This is a Pre-Seed company trying to raise at Seed valuation. They haven't proved value yet."
+
+**2. The "Leaky Bucket" Contradiction (Growth vs. Retention)**
+* **Logic:** If `growth_rate_mom` is "High (>10%)" BUT `retention_metrics` is "Low" or "High Churn".
+* **Verdict:** 🚩 **Uninvestable.** "They are buying users who leave immediately. Growing faster just means dying faster."
+
+**3. The "Founder Bottleneck" Contradiction (Scaling Risk)**
+* **Logic:** If `mrr` > $20k BUT `closer` is still "Founder" AND `sales_cycle` > 3 months.
+* **Verdict:** 🚩 **Not Scalable.** "The founder is brute-forcing sales. They haven't built a sales team or process yet, which is required for the next stage."
+
+**4. The "Unit Economics" Contradiction (Price vs. Reality)**
+* **Logic:** If `acv` (Price) is Low (<$20/mo) BUT `sales_motion` is "Sales-Led" (Humans closing deals).
+* **Verdict:** 🚩 **Insolvency Risk.** "The math doesn't work. You cannot afford to pay a human sales rep to sell a $20 product. CAC will exceed LTV."
+
+---
+### OUTPUT FORMAT
+List specific contradictions found as bullet points.
+If NO contradictions, output: "✅ No traction logic contradictions found."
+"""
 # ==============================================================================
 # VALUATION & FOUNDER RISK PROMPT (Berkus & YC Methodologies)
 # Goal: Identify specific investment risks based on established VC frameworks.
