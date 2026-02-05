@@ -13,6 +13,7 @@ from urllib.parse import urlparse
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser, JsonOutputParser
 from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_ollama import ChatOllama
 from langchain_google_genai.chat_models import ChatGoogleGenerativeAIError
 from google.api_core.exceptions import ResourceExhausted
 
@@ -21,8 +22,10 @@ from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_excep
 
 # Local Imports (Assumed to exist based on your code)
 from prompts import (
+    CONTRADICTION_MARKET_PROMPT_TEMPLATE,
     CONTRADICTION_PRODUCT_PROMPT_TEMPLATE,
-    CONTRADICTION_TEAM_PROMPT_TEMPLATE, 
+    CONTRADICTION_TEAM_PROMPT_TEMPLATE,
+    VALUATION_RISK_MARKET_PROMPT_TEMPLATE, 
     VALUATION_RISK_PROBLEM_PROMPT_TEMPLATE,
     VALUATION_RISK_PRODUCT_PROMPT_TEMPLATE, 
     VALUATION_RISK_TEAM_PROMPT_TEMPLATE, 
@@ -30,7 +33,8 @@ from prompts import (
     CONTRADICTION_PROBLEM_PROMPT_TEMPLATE, 
     PROBLEM_SCORING_AGENT_PROMPT,
     VISUAL_VERIFICATION_PROMPT,
-    PRODUCT_SCORING_AGENT_PROMPT
+    PRODUCT_SCORING_AGENT_PROMPT,
+    MARKET_SCORING_AGENT_PROMPT
 )
 from helpers import (
     extract_problem_data, 
@@ -388,6 +392,58 @@ def analyze_visuals_with_langchain(company_name, website_url, prompt_template):
         return f"## Visual Analysis Error\n* **AI Processing Failed**: {str(e)}"
     
 
+def regulation_trend_radar_tool(category: str, location: str):
+    """
+    Scans for regulatory risks (e.g., Licenses needed) and market trends (Growth/Decline).
+    """
+    print(f"📡 Scanning Regulations & Trends for: '{category}' in '{location}'...")
+    
+    url = "https://google.serper.dev/search"
+    api_key = os.environ.get("SERPER_API_KEY")
+    headers = {'X-API-KEY': api_key, 'Content-Type': 'application/json'}
+
+    results_data = {}
+    
+    # Dynamic Year Logic
+    current_year = datetime.now().year
+    next_year = current_year + 1
+
+    # --- CHECK 1: REGULATIONS ---
+    try:
+        # e.g., "Fintech regulatory risks compliance laws Egypt"
+        reg_query = f"{category} regulatory risks compliance laws {location}"
+        payload_reg = json.dumps({"q": reg_query})
+        
+        resp_reg = requests.post(url, headers=headers, data=payload_reg)
+        reg_hits = resp_reg.json().get("organic", [])[:3]
+        
+        results_data["regulatory_evidence"] = "\n".join(
+            [f"- {r['title']}: {r['snippet']}" for r in reg_hits]
+        )
+    except Exception as e:
+        results_data["regulatory_evidence"] = f"Search Failed: {str(e)}"
+
+    # --- CHECK 2: MARKET TRENDS ---
+    try:
+        # e.g., "Fintech market growth rate outlook 2026 2027 Egypt"
+        trend_query = f"{category} market growth rate outlook {current_year} {next_year} {location}"
+        payload_trend = json.dumps({"q": trend_query})
+        
+        resp_trend = requests.post(url, headers=headers, data=payload_trend)
+        trend_hits = resp_trend.json().get("organic", [])[:3]
+        
+        results_data["trend_evidence"] = "\n".join(
+            [f"- {r['title']}: {r['snippet']}" for r in trend_hits]
+        )
+    except Exception as e:
+        results_data["trend_evidence"] = f"Search Failed: {str(e)}"
+
+    return {
+        "tool": "Regulation_Radar",
+        "category": category,
+        "location": location,
+        "findings": results_data
+    }
 
 def tam_sam_verifier_tool(beachhead: str, location: str, claimed_size: str):
     print(f"📊 Verifying Market Size for: '{beachhead}' in '{location}'...")
@@ -428,6 +484,101 @@ def tam_sam_verifier_tool(beachhead: str, location: str, claimed_size: str):
     except Exception as e:
         return {"error": str(e)}
     
+    
+def local_dependency_detective(tech_stack: str, acquisition_channel: str, product_desc: str):
+    print("🕵️  Running Smart Dependency Detective (Local Llama3)...")
+    
+    # --- CHANGE 1: USE OLLAMA INSTEAD OF GEMINI ---
+    # Llama 3 (8B) is excellent at following JSON instructions.
+    # Make sure you ran 'ollama pull llama3' in your terminal first.
+    llm = ChatOllama(
+        model="gemma3:1b", 
+        format="json",  # <--- Crucial: Forces local model to output valid JSON
+        temperature=0
+    )
+
+    analysis_prompt = """
+    You are a Technical Due Diligence Analyst. 
+    Analyze this startup for Platform Risks (Sherlocking, ToS Violations, Dependencies).
+    
+    Context:
+    - Product: "{product}"
+    - Tech Stack: "{tech}"
+    - Acquisition: "{channel}"
+    
+    Respond ONLY with a JSON object in this format:
+    {{
+        "risk_level": "High/Medium/Low",
+        "red_flags": ["List specific risks..."],
+        "search_query_needed": "Search query for recent bans (e.g., 'LinkedIn scraping lawsuits') or 'None'"
+    }}
+    """
+    
+    prompt = PromptTemplate(template=analysis_prompt, input_variables=["product", "tech", "channel"])
+    chain = prompt | llm | JsonOutputParser()
+    
+    try:
+        # Run Local LLM
+        analysis = chain.invoke({
+            "product": product_desc,
+            "tech": tech_stack,
+            "channel": acquisition_channel
+        })
+        
+        # --- STEP 2: VERIFICATION (Same as before) ---
+        # The Local LLM identifies the logic (e.g., "This is scraping"), 
+        # and we use the API to check if it's currently being banned.
+        
+        verification_note = ""
+        search_query = analysis.get("search_query_needed", "None")
+        
+        # Only run search if it's a real query (sometimes models hallucinate a query)
+        if search_query != "None" and "None" not in search_query and os.environ.get("SERPER_API_KEY"):
+            print(f"   -> 🔍 Verifying risk locally via Search: '{search_query}'...")
+            
+            url = "https://google.serper.dev/search"
+            headers = {'X-API-KEY': os.environ.get("SERPER_API_KEY"), 'Content-Type': 'application/json'}
+            resp = requests.post(url, headers=headers, data=json.dumps({"q": search_query}))
+            
+            if resp.status_code == 200:
+                snippets = [r['snippet'] for r in resp.json().get('organic', [])[:2]]
+                verification_note = f"\n**Forensic Evidence:** {snippets}"
+        
+        return {
+            "tool": "Dependency_Detective_Local",
+            "risk_level": analysis.get("risk_level"),
+            "analysis": f"**{analysis.get('risk_level').upper()} RISK**\n" + 
+                        "\n".join([f"⚠️ {flag}" for flag in analysis.get("red_flags", [])]) + 
+                        verification_note
+        }
+
+    except Exception as e:
+        return {"tool": "Dependency_Detective_Local", "error": str(e)}
+    
+def market_risk_agent(market_inputs, tam_result, radar_result, dep_result):
+    
+    # 1. Setup LLM
+    llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
+    
+    # 2. Setup Prompt
+    prompt = PromptTemplate(
+        template=VALUATION_RISK_MARKET_PROMPT_TEMPLATE,
+        input_variables=["internal_json", "tam_report", "radar_report", "dependency_report"]
+    )
+    
+    # 3. Create Chain
+    chain = prompt | llm | StrOutputParser()
+    
+    # 4. Run Analysis
+    print("📉 Running Market Risk Analysis...")
+    result = chain.invoke({
+        "internal_json": json.dumps(market_inputs, indent=2),
+        "tam_report": json.dumps(tam_result, indent=2),
+        "radar_report": json.dumps(radar_result, indent=2),
+        "dependency_report": json.dumps(dep_result, indent=2)
+    })
+    
+    return result
 @retry(**RETRY_CONFIG)
 def team_scoring_agent(data_package: dict) -> dict:
     '''Synthesizes risk reports, contradiction checks, and missing info to assign a final team investment score.
@@ -568,7 +719,70 @@ def product_scoring_agent(data_package: dict) -> str:
 
     except Exception as e:
         return f"❌ Scoring Failed: {str(e)}"
+def market_scoring_agent(data_package: dict) -> dict:
+    '''
+    Synthesizes market reports to assign a final score.
+    Returns: JSON Dictionary
+    '''
+    
+    print("⚖️  Running Market Scoring Agent (JSON Output)...")
 
+    # 1. Setup LLM
+    llm_flash = ChatGoogleGenerativeAI(
+        model="gemini-2.5-flash", 
+        temperature=0,
+        google_api_key=os.environ.get("GEMINI_API_KEY")
+    )
+
+    # 2. Define Prompt
+    prompt = PromptTemplate(
+        template=MARKET_SCORING_AGENT_PROMPT,
+        input_variables=[
+            "current_date",
+            "internal_data", 
+            "contradiction_report", 
+            "tam_report", 
+            "radar_report", 
+            "dependency_report"
+        ]
+    )
+    today_str = datetime.now().strftime("%Y-%m-%d")
+
+    # 3. Execution Chain
+    chain = prompt | llm_flash | JsonOutputParser()
+    
+    try:
+        # 4. Invoke
+        result_dict = chain.invoke({
+            "current_date": today_str,
+            "internal_data": json.dumps(data_package.get("internal_data", {}), indent=2),
+            "contradiction_report": str(data_package.get("contradiction_report", "None")),
+            "tam_report": str(data_package.get("tam_report", "None")),
+            "radar_report": str(data_package.get("radar_report", "None")),
+            "dependency_report": str(data_package.get("dependency_report", "None"))
+        })
+
+        # 5. Enrich with Rubric Definition (Optional but helpful)
+        score_str = str(result_dict.get('score', "0")).split("/")[0]
+        score_num = int(score_str) if score_str.isdigit() else 0
+        
+        rubric_map = {
+            0: "Market Undefined / Too Small",
+            1: "Narrow Market (Limited Upside)",
+            2: "Medium Market (Unclear Expansion)",
+            3: "Large Market (Pre-Seed Bar)",
+            4: "Expanding Market (Seed Bar)",
+            5: "Category Creator (Blue Ocean)"
+        }
+        
+        # Add the human-readable rating to the JSON
+        result_dict["rubric_rating"] = rubric_map.get(score_num, "Unknown")
+        result_dict["score_numeric"] = score_num # Clean integer for math
+
+        return result_dict
+
+    except Exception as e:
+        return {"error": "Market Scoring Failed", "details": str(e)}
 
 # --- MAIN EXECUTION PIPELINE ---
 if __name__ == "__main__":
@@ -788,7 +1002,7 @@ if __name__ == "__main__":
     print("✂️  Extracting Market-Specific Context...")
     # This creates a smaller, cleaner JSON just for the Market Agent
     market_scope_data = extract_market_data(raw_startup_data)
-    print(market_scope_data)
+    # print(market_scope_data)
     print("\n🚀 Calling TAM Tool...")
 
     beachhead_text = market_scope_data["entry_point"]["beachhead_definition"]
@@ -805,6 +1019,74 @@ if __name__ == "__main__":
     )
 
     print(json.dumps(tam_result, indent=2))
+
+
+
+    category = market_scope_data["scalability"]["future_category"]
+    location = market_scope_data["entry_point"]["location"]
+
+    # # 3. Conditional Execution
+    if category and location:
+        print(f"\n📡 Running Regulation & Trend Radar...")
+        radar_result = regulation_trend_radar_tool(
+            category=category,
+            location=location
+        )
+        print(json.dumps(radar_result, indent=2))
+    else:
+        print("\n Skipping Regulation Radar: Missing 'Category' or 'Location' in data.")
+
+    # A. Contradiction Check
+    print("\n🤖 Running Market Contradiction Check...")
+    try:
+        market_contradiction_result = contradiction_check(market_scope_data, agent_prompt=CONTRADICTION_MARKET_PROMPT_TEMPLATE)
+        print(market_contradiction_result)
+        print("   -> Done.")
+    except Exception as e:
+        print(f"❌ Execution Error (Contradiction): {e}")
+        market_contradiction_result = "Error."
+
+
+    product_context = market_scope_data["scalability"]["future_category"]
+    competitor_context = market_scope_data["risks"]["current_competitors"] 
+
+    # The Magic Line: Combine them to give the LLM context
+    tech_inference = f"Category: {product_context}. Methodology based on: {competitor_context}"
+
+    print(f"🕵️  Calling Dependency Detective with context: {tech_inference}...")
+
+    # 3. Call the Function
+    result = local_dependency_detective(
+        tech_stack=tech_inference,  
+        acquisition_channel=market_scope_data["risks"]["acquisition_channel"],
+        product_desc=product_context
+    )
+
+    print(json.dumps(result, indent=2))
+
+
+    market_risk_agent_result = market_risk_agent(
+        market_inputs=market_scope_data,
+        tam_result=tam_result,
+        radar_result=radar_result,  
+        dep_result=result
+    )
+    print("\n" + "="*40)
+    print("MARKET RISK AGENT RESULT:")
+    print("="*40)
+    print(market_risk_agent_result)
+
+    market_data_package = {
+    "internal_data": extract_market_data(market_scope_data), # The extracted JSON
+    "contradiction_report": market_contradiction_result, # Or output from Contradiction Agent
+    "tam_report": tam_result,       # Output from TAM Tool
+    "radar_report": radar_result,   # Output from Radar Tool
+    "dependency_report": result # Output from Dependency Detective
+    }
+
+    # Run the Agent
+    final_report = market_scoring_agent(market_data_package)
+    print(final_report)
 
     
     # =========================================================
