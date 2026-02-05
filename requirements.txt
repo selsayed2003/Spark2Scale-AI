@@ -6,3 +6,6 @@ python-dotenv
 pydantic-settings
 tavily-python
 python-pptx
+google-genai==0.3.0
+pydantic==2.6.1
+python-dotenv==1.0.1
