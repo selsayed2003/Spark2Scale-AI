@@ -5,20 +5,6 @@
 # Goal: Detect logical impossibilities.
 # ==============================================================================
 
-
-PLANNER_PROMPT = """You are a Strategic Evaluation Planner.
-Your goal is to outline the key steps for evaluating this specific startup.
-Focus on identifying unique risks related to their specific domain and stage.
-
-Startup Data:
-{user_data}
-
-Return a structured Plan including:
-1. Steps: High-level steps for the evaluation agents (Team, Problem, Product).
-2. Key Risks: Specific risks to watch out for (e.g., "Founder has no technical background", "Market seems crowded").
-3. Desired Output: What the final report should highlight.
-"""
-
 CONTRADICTION_TEAM_PROMPT_TEMPLATE = """
 You are a Forensic Data Analyst. Your ONLY job is to detect **Logical Impossibilities** and **Suspicious Inconsistencies**.
 Do not offer opinions on startup quality. Only flag things that physically/mathematically cannot be true or look highly erroneous.
