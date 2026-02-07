@@ -3,6 +3,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from app.graph.ppt_generation_agent import app_graph
 from app.graph.ppt_generation_agent.state import PPTGenerationState
+from app.graph.ppt_generation_agent.utils import generate_pptx_file
 from app.core.logger import get_logger
 
 logger = get_logger(__name__)
@@ -34,20 +35,17 @@ async def generate_ppt(input_data: PPTInput):
             "../../../graph/ppt_generation_agent"
         )
         
+
+
         final_draft = final_state.get("draft")
         if final_draft:
             if not os.path.exists(output_dir):
                 os.makedirs(output_dir)
             
-            output_filename = os.path.join(output_dir, "presentation.md")
+            output_filename = os.path.join(output_dir, "presentation.pptx")
             
-            with open(output_filename, "w", encoding="utf-8") as f:
-                f.write(f"# {final_draft.title}\n\n")
-                for section in final_draft.sections:
-                    f.write(f"## {section.title}\n")
-                    for item in section.content:
-                        f.write(f"- {item}\n")
-                    f.write(f"\n*Speaker Notes: {section.speaker_notes}*\n\n")
+            # Use the Presenton engine to generate the PPTX
+            await generate_pptx_file(final_draft, output_filename)
             
             final_state["ppt_path"] = output_filename
             return {
