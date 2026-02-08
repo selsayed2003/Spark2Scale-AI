@@ -4,15 +4,18 @@ import http.client
 import pandas as pd
 import platform
 import glob
+from app.graph.market_research_agent.logger_config import get_logger
 
 # Helper Imports
 from .helpers import research_utils, validator_utils, market_utils, finance_utils, pdf_utils
+
+logger = get_logger("MarketResearchTools")
 
 # ==========================================
 # 3. Research Engine (Competitors)
 # ==========================================
 def find_competitors(business_idea: str):
-    print(f"\n🕵️ [Tool 3] Deep Market Research (Strict Mode) for: '{business_idea}'...")
+    logger.info(f"\n🕵️ [Tool 3] Deep Market Research (Strict Mode) for: '{business_idea}'...")
     
     queries = research_utils.generate_smart_queries(business_idea)
     all_raw_results = research_utils.execute_serper_search(queries)
@@ -23,21 +26,21 @@ def find_competitors(business_idea: str):
     competitors = research_utils.extract_competitors_strict(all_raw_results, business_idea)
     
     if competitors:
-        print(f"DEBUG: Competitors type: {type(competitors)}")
-        print(f"DEBUG: Competitors content: {competitors}")
+        logger.debug(f"Competitors type: {type(competitors)}")
+        logger.debug(f"Competitors content: {competitors}")
         os.makedirs("data_output", exist_ok=True)
         filename = f"data_output/{business_idea.replace(' ', '_')}_competitors.csv"
         
         try:
             df = pd.DataFrame(competitors)
         except Exception as e:
-            print(f"DEBUG: DataFrame Error: {e}")
+            logger.error(f"DataFrame Error: {e}")
             return None
         # Fix for missing feature columns
         if "Features" not in df.columns: df["Features"] = "Standard Features"
         
         df.to_csv(filename, index=False)
-        print(f"✅ Success: Extracted {len(df)} VALID competitors.")
+        logger.info(f"✅ Success: Extracted {len(df)} VALID competitors.")
         return filename
     
     return None
@@ -46,7 +49,7 @@ def find_competitors(business_idea: str):
 # 4. Problem Validator
 # ==========================================
 def validate_problem(idea, problem_statement):
-    print(f"\n😤 [Tool 6] Validating Problem & Quantifying Pain...")
+    logger.info(f"\n😤 [Tool 6] Validating Problem & Quantifying Pain...")
     
     queries = validator_utils.generate_validation_queries(idea, problem_statement)
     raw_results = []
@@ -68,14 +71,14 @@ def validate_problem(idea, problem_statement):
     os.makedirs("data_output", exist_ok=True)
     with open(f"data_output/{idea.replace(' ', '_')}_validation.json", "w") as f: json.dump(analysis, f, indent=4)
     
-    print(f"⚖️  VERDICT: {analysis.get('verdict')} | 🩸 PAIN SCORE: {analysis.get('pain_score')}/100")
+    logger.info(f"⚖️  VERDICT: {analysis.get('verdict')} | 🩸 PAIN SCORE: {analysis.get('pain_score')}/100")
     return f"data_output/{idea.replace(' ', '_')}_validation.json"
 
 # ==========================================
 # 5. Market Quantifier (Trends)
 # ==========================================
 def fetch_trend_data(keywords, geo_code='EG'):
-    print(f"\n📊 [Tool 7] Quantifying Market Demand...")
+    logger.info(f"\n📊 [Tool 7] Quantifying Market Demand...")
     
     data, source_name = market_utils.get_trending_data(keywords, geo_code)
     
@@ -87,17 +90,17 @@ def fetch_trend_data(keywords, geo_code='EG'):
         col = data.columns[0]
         growth_pct = market_utils.plot_trends(data, source_name, col)
         
-        print(f"✅ Success: Growth calculated at {growth_pct:.1f}%")
+        logger.info(f"✅ Success: Growth calculated at {growth_pct:.1f}%")
         return "data_output/market_trends.csv", "data_output/market_demand_chart.png"
         
     return None, None
 
 def calculate_market_size(idea, location="Global"):
-    print(f"\n📐 [Tool 11] Calculating TAM, SAM, SOM & Scalability...")
+    logger.info(f"\n📐 [Tool 11] Calculating TAM, SAM, SOM & Scalability...")
     
     industry = market_utils.identify_industry(idea)
     
-    print(f"   🌍 Hunting for '{industry}' market reports...")
+    logger.info(f"   🌍 Hunting for '{industry}' market reports...")
     queries = [
         f"{industry} market size {location} 2024 2025",
         f"{industry} industry revenue {location} statistics",
@@ -117,14 +120,14 @@ def calculate_market_size(idea, location="Global"):
     with open("data_output/market_sizing.json", "w") as f:
         json.dump(result, f, indent=4)
         
-    print(f"✅ Market Sizing Complete: {result.get('market_type')}")
+    logger.info(f"✅ Market Sizing Complete: {result.get('market_type')}")
     return "data_output/market_sizing.json"
 
 # ==========================================
 # 6. Finance Model
 # ==========================================
 def run_finance_model(idea):
-    print(f"\n💰 [Tool 8] Starting Localized Financial Model...")
+    logger.info(f"\n💰 [Tool 8] Starting Localized Financial Model...")
     estimates = finance_utils.get_real_world_estimates(idea)
     return finance_utils.generate_financial_visuals(estimates)
 
@@ -138,7 +141,7 @@ def generate_report(file_path, query, trend_file=None, finance_file=None):
 # 8. PDF Compiler
 # ==========================================
 def compile_final_pdf(idea_name):
-    print(f"\n📄 [Tool 9] Compiling Professional PDF Report...")
+    logger.info(f"\n📄 [Tool 9] Compiling Professional PDF Report...")
     
     pdf = pdf_utils.PDFReport()
     pdf.set_auto_page_break(auto=True, margin=15)
@@ -157,14 +160,15 @@ def compile_final_pdf(idea_name):
         if font_path and os.path.exists(font_path):
             pdf.add_font("ArialUnicode", style="", fname=font_path)
             pdf.add_font("ArialUnicode", style="B", fname=font_path)
-            print(f"   ✅ Loaded System Font: {font_path}")
+            logger.info(f"   ✅ Loaded System Font: {font_path}")
         else:
-            print("   ⚠️ Custom font not found. Arabic may not render correctly.")
+            logger.warning("   ⚠️ Custom font not found. Arabic may not render correctly.")
     except Exception as e:
-        print(f"   ⚠️ Font Error: {e}")
+        logger.error(f"   ⚠️ Font Error: {e}")
 
     # --- PAGE 1: TITLE & EXECUTIVE SUMMARY ---
     pdf.add_page()
+    logger.info(f"   📄 Generating Page {pdf.page_no()}: Title & Executive Summary")
     pdf.set_font_for_content('B', 24)
     pdf.cell(0, 20, f"Market Research: {pdf_utils.fix_arabic(idea_name)}", 0, 1, 'C')
     pdf.ln(10)
@@ -181,12 +185,14 @@ def compile_final_pdf(idea_name):
     
     # --- PAGE 2: MARKET DEMAND ---
     pdf.add_page()
+    logger.info(f"   📄 Generating Page {pdf.page_no()}: Market Validation")
     pdf.chapter_title("Market Validation & Trends")
     pdf.add_image_centered("data_output/market_demand_chart.png")
     pdf.chapter_body("Analysis of market interest over the last 12 months.")
     
     # --- PAGE 3: FINANCIALS ---
     pdf.add_page()
+    logger.info(f"   📄 Generating Page {pdf.page_no()}: Financials")
     pdf.chapter_title("Financial Feasibility")
     pdf.cell(0, 10, "1. Startup Cost Estimates", 0, 1, 'L')
     pdf.add_image_centered("data_output/finance_startup_pie.png")
@@ -198,6 +204,7 @@ def compile_final_pdf(idea_name):
 
     # --- PAGE 4: MARKET SIZING ---
     pdf.add_page()
+    logger.info(f"   📄 Generating Page {pdf.page_no()}: Market Sizing")
     pdf.chapter_title("Market Opportunity & Sizing")
     
     if os.path.exists("data_output/market_sizing.json"):
@@ -235,6 +242,7 @@ def compile_final_pdf(idea_name):
 
     # --- PAGE 5: COMPETITOR FEATURES ---
     pdf.add_page()
+    logger.info(f"   📄 Generating Page {pdf.page_no()}: Competitors")
     pdf.chapter_title("Competitor Feature Analysis")
     
     comp_files = glob.glob(f"data_output/{idea_name.replace(' ', '_')}_competitors.csv")
@@ -258,7 +266,7 @@ def compile_final_pdf(idea_name):
                 pdf.cell(140, 10, features, 1)
                 pdf.ln()
         except Exception as e:
-            print(f"   ⚠️ Error adding table: {e}")
+            logger.error(f"   ⚠️ Error adding table: {e}")
             
     # --- OUTPUT ---
     clean_name = idea_name.replace(' ', '_').replace('"', '').replace("'", "")
@@ -266,8 +274,8 @@ def compile_final_pdf(idea_name):
     
     try:
         pdf.output(output_filename)
-        print(f"✅ PDF GENERATED: {output_filename}")
+        logger.info(f"✅ PDF GENERATED: {output_filename}")
         return output_filename
     except Exception as e:
-        print(f"❌ PDF Save Failed: {e}")
+        logger.error(f"❌ PDF Save Failed: {e}")
         return None

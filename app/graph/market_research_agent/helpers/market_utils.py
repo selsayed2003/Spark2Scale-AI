@@ -11,6 +11,10 @@ import yfinance as yf
 import datetime
 from pytrends.request import TrendReq
 from app.core.config import settings, gemini_client
+from app.graph.market_research_agent import prompts
+from app.graph.market_research_agent.logger_config import get_logger
+
+logger = get_logger("MarketUtils")
 
 SERPER_API_KEY = settings.SERPER_API_KEY
 
@@ -18,14 +22,14 @@ def fetch_stock_data(ticker_symbol: str, period: str = "2y"):
     """
     Fetches historical stock data for a given ticker.
     """
-    print(f"\n📥 [Tool 1] Fetching data for: {ticker_symbol}...")
+    logger.info(f"\n📥 [Tool 1] Fetching data for: {ticker_symbol}...")
     try:
         # Initialize Ticker
         stock = yf.Ticker(ticker_symbol)
         df = stock.history(period=period, auto_adjust=True)
         
         if df.empty:
-            print(f"❌ Error: No data found for symbol '{ticker_symbol}'.")
+            logger.error(f"❌ Error: No data found for symbol '{ticker_symbol}'.")
             return None
         
         # Clean Data
@@ -38,21 +42,21 @@ def fetch_stock_data(ticker_symbol: str, period: str = "2y"):
         filename = f"data_output/{ticker_symbol}_market_data.csv"
         df.to_csv(filename, index=False)
         
-        print(f"✅ Success: Fetched {len(df)} rows.")
+        logger.info(f"✅ Success: Fetched {len(df)} rows.")
         return filename
 
     except Exception as e:
-        print(f"⚠️ Fetch Error: {e}")
+        logger.warning(f"⚠️ Fetch Error: {e}")
         return None
 
 def calculate_technical_indicators(input_file: str):
     """
     Calculates SMA (Trend) and RSI (Momentum) indicators.
     """
-    print(f"\n📈 [Tool 2] Calculating indicators...")
+    logger.info(f"\n📈 [Tool 2] Calculating indicators...")
     try:
         if not os.path.exists(input_file):
-            print("❌ Error: Input file not found.")
+            logger.error("❌ Error: Input file not found.")
             return None
             
         df = pd.read_csv(input_file)
@@ -74,18 +78,18 @@ def calculate_technical_indicators(input_file: str):
         output_file = input_file.replace(".csv", "_analyzed.csv")
         df.to_csv(output_file, index=False)
         
-        print(f"✅ Success: Added SMA and RSI columns.")
+        logger.info(f"✅ Success: Added SMA and RSI columns.")
         return output_file
 
     except Exception as e:
-        print(f"⚠️ Math Error: {e}")
+        logger.warning(f"⚠️ Math Error: {e}")
         return None
 
 def search_wikidata(query):
     """
     Searches Wikidata for the most likely entity and returns its English Wikipedia title.
     """
-    print(f"   🌐 Searching Wikidata for: '{query}'...")
+    logger.info(f"   🌐 Searching Wikidata for: '{query}'...")
     try:
         # 1. Search for the entity
         search_url = "https://www.wikidata.org/w/api.php"
@@ -129,20 +133,12 @@ def search_wikidata(query):
         return data["search"][0]["label"].replace(" ", "_")
         
     except Exception as e:
-        print(f"   ⚠️ Wikidata Error: {e}")
+        logger.warning(f"   ⚠️ Wikidata Error: {e}")
         
         # --- NEW: SMART AI FALLBACK (No Hardcoding) ---
         try:
-            print("   🤖 Wikidata failed. Asking AI for the best Wikipedia topic...")
-            fallback_prompt = f"""
-            Task: Identify the main Wikipedia Article Title for the industry of: "{query}".
-            Examples:
-            - "Cat Cafe" -> "Cat_café"
-            - "AI Dating App" -> "Online_dating_service"
-            - "Solar Panels" -> "Solar_power"
-            
-            RETURN ONLY THE TITLE STRING (No quotes, use underscores for spaces).
-            """
+            logger.info("   🤖 Wikidata failed. Asking AI for the best Wikipedia topic...")
+            fallback_prompt = prompts.wiki_fallback_prompt(query)
             res = gemini_client.models.generate_content(
                 model=settings.GEMINI_MODEL_NAME, 
                 contents=fallback_prompt
@@ -152,7 +148,7 @@ def search_wikidata(query):
             return "Business"
 
 def fetch_wikipedia_data(topic):
-    print(f"   📖 Switching to Wikipedia Data for: '{topic}'...")
+    logger.info(f"   📖 Switching to Wikipedia Data for: '{topic}'...")
     end = datetime.datetime.now()
     start = end - datetime.timedelta(days=365)
     url = f"https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/all-agents/{topic}/daily/{start.strftime('%Y%m%d')}/{end.strftime('%Y%m%d')}"
@@ -170,7 +166,7 @@ def fetch_wikipedia_data(topic):
     except: return None, None
 
 def get_trending_data(keywords, geo_code='EG'):
-    print(f"   📊 Querying Google Trends for: {keywords}...")
+    logger.info(f"   📊 Querying Google Trends for: {keywords}...")
     try:
         pytrends = TrendReq(hl='en-US', tz=360)
         pytrends.build_payload(keywords, cat=0, timeframe='today 12-m', geo=geo_code)
@@ -213,16 +209,16 @@ def plot_trends(data, source_name, col):
 
 def identify_industry(idea):
     try:
-        prompt_ind = f"Identify the broader 'Industry' for: '{idea}'. Return ONLY the string (e.g. 'Online Dating Services')."
+        prompt_ind = prompts.identify_industry_prompt(idea)
         res = gemini_client.models.generate_content(model=settings.GEMINI_MODEL_NAME, contents=prompt_ind)
         return res.text.strip().replace('"','')
     except Exception as e:
-        print(f"   ⚠️ Industry ID Error: {e}")
+        logger.warning(f"   ⚠️ Industry ID Error: {e}")
         return idea
 
 
 def search_market_reports(query):
-    print(f"   🔎 Searching: '{query}'...")
+    logger.info(f"   🔎 Searching: '{query}'...")
     try:
         conn = http.client.HTTPSConnection("google.serper.dev")
         payload = json.dumps({ "q": query, "num": 5 })
@@ -241,50 +237,19 @@ def search_market_reports(query):
                 output += f"Title: {item.get('title')}\nSnippet: {item.get('snippet')}\n\n"
         return output
     except Exception as e:
-        print(f"   ⚠️ Search Error: {e}")
+        logger.warning(f"   ⚠️ Search Error: {e}")
         return ""
 
 def analyze_market_size(idea, industry, location, market_data):
-    print("   🧮 triangulating market numbers...")
-    analysis_prompt = f"""
-    You are a Market Sizing Expert.
-    
-    IDEA: {idea}
-    INDUSTRY: {industry}
-    LOCATION: {location}
-    SEARCH DATA: 
-    {market_data}
-    
-    TASK: Estimate TAM, SAM, and SOM.
-    - TAM (Total Addressable Market): The big number (Global or National revenue).
-    - SAM (Serviceable Available Market): The segment relevant to this specific idea/location.
-    - SOM (Serviceable Obtainable Market): Realistic capture (e.g. 1-5% of SAM) for a startup.
-    
-    Also analyze:
-    - RED vs BLUE OCEAN: Is it crowded?
-    - SCALABILITY: Is it High (Software) or Low (Service)?
-    
-    RETURN JSON:
-    {{
-        "tam_value": "$X Billion",
-        "tam_description": "Context for TAM...",
-        "sam_value": "$X Million",
-        "sam_description": "Context for SAM...",
-        "som_value": "$X Million",
-        "som_description": "Context for SOM...",
-        "market_type": "Red Ocean / Blue Ocean",
-        "scalability_score": "High/Medium/Low",
-        "scalability_reasoning": "Why...",
-        "sources": ["Source 1", "Source 2"]
-    }}
-    """
+    logger.info("   🧮 triangulating market numbers...")
+    analysis_prompt = prompts.analyze_market_size_prompt(idea, industry, location, market_data)
     
     try:
         res = gemini_client.models.generate_content(model=settings.GEMINI_MODEL_NAME, contents=analysis_prompt)
         text_resp = res.text.replace("```json","").replace("```","").strip()
         return json.loads(text_resp)
     except Exception as e:
-        print(f"   ⚠️ Sizing Analysis Error: {e}")
+        logger.warning(f"   ⚠️ Sizing Analysis Error: {e}")
         return {
             "tam_value": "Unknown", "sam_value": "Unknown", "som_value": "Unknown",
             "market_type": "Unknown", "scalability_score": "Unknown", "sources": []
@@ -324,5 +289,5 @@ def plot_market_funnel(result, industry):
         plt.close()
         return "data_output/market_sizing_funnel.png"
     except Exception as e:
-        print(f"⚠️ Sizing Visual Error: {e}")
+        logger.warning(f"⚠️ Sizing Visual Error: {e}")
         return None
