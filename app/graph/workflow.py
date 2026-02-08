@@ -9,20 +9,21 @@ def create_graph():
     workflow = StateGraph(AgentState)
 
     # Add nodes
-    workflow.add_node("evaluation", evaluation_node)
-    workflow.add_node("recommendation", recommendation_node)
-    workflow.add_node("market_research", market_research_node)
-    workflow.add_node("ppt_generation", ppt_generation_node)
+    # Add nodes
+    workflow.add_node("evaluation_step", evaluation_node)
+    workflow.add_node("recommendation_step", recommendation_node)
+    workflow.add_node("market_research_step", market_research_node)
+    workflow.add_node("ppt_generation_step", ppt_generation_node)
 
     # Define edges - for now, we'll do a sequential flow
     # Idea -> Market Research -> Evaluation -> Recommendation -> PPT
     
-    workflow.set_entry_point("market_research")
+    workflow.set_entry_point("market_research_step")
     
-    workflow.add_edge("market_research", "evaluation")
-    workflow.add_edge("evaluation", "recommendation")
-    workflow.add_edge("recommendation", "ppt_generation")
-    workflow.add_edge("ppt_generation", END)
+    workflow.add_edge("market_research_step", "evaluation_step")
+    workflow.add_edge("evaluation_step", "recommendation_step")
+    workflow.add_edge("recommendation_step", "ppt_generation_step")
+    workflow.add_edge("ppt_generation_step", END)
 
     return workflow.compile()
 
