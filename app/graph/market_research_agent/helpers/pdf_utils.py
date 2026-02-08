@@ -6,11 +6,18 @@ import arabic_reshaper
 from bidi.algorithm import get_display
 from fpdf import FPDF
 from app.core.config import settings, gemini_client
+from app.graph.market_research_agent import prompts
+from app.core.config import settings, gemini_client
+from app.graph.market_research_agent import prompts
+from app.graph.market_research_agent.logger_config import get_logger
 import json
 import asyncio
+import re
+
+logger = get_logger("PDFUtils")
 
 def generate_report(file_path: str, query: str, trend_file=None, finance_file=None):
-    print(f"\n📝 [Tool 5] Synthesizing Data & Calculating Opportunity Score...")
+    logger.info(f"\n📝 [Tool 5] Synthesizing Data & Calculating Opportunity Score...")
     
     pain_score = 0
     val_data = ""
@@ -46,24 +53,12 @@ def generate_report(file_path: str, query: str, trend_file=None, finance_file=No
     if opp_score > 80: grade = "A (Gold Mine)"
     elif opp_score > 60: grade = "B (Solid)"
     
-    prompt = f"""
-    You are a Venture Capital Analyst.
-    TOPIC: {query}
-    EXECUTIVE DASHBOARD:
-    PAIN SCORE: {pain_score}/100
-    GROWTH RATE: {growth_pct:.1f}%
-    OPPORTUNITY GRADE: {grade} ({opp_score:.1f})
-    
-    FINANCIAL PROJECTIONS: {finance_summary}
-    QUALITATIVE EVIDENCE: {val_data}
-    
-    TASK: Write a comprehensive Investment Memo.
-    """
+    prompt = prompts.investment_memo_prompt(query, pain_score, growth_pct, grade, opp_score, finance_summary, val_data)
     try:
         res = gemini_client.models.generate_content(model=settings.GEMINI_MODEL_NAME, contents=prompt)
         with open("data_output/FINAL_MARKET_REPORT.md", "w", encoding="utf-8") as f: f.write(res.text)
-        print(f"✅ Final Report Saved.")
-    except Exception as e: print(f"⚠️ Report Error: {e}")
+        logger.info(f"✅ Final Report Saved.")
+    except Exception as e: logger.error(f"⚠️ Report Error: {e}")
 
 class PDFReport(FPDF):
     def header(self):
@@ -111,6 +106,12 @@ class PDFReport(FPDF):
         except:
             self.set_font('Arial', style, size)
 
+def remove_emojis(text):
+    if not isinstance(text, str): return text
+    # Remove emojis using regex (range of emojis)
+    # This is a basic regex for common emojis
+    return re.sub(r'[^\w\s,.\-\(\)\[\]\u0600-\u06FF]', '', text)
+
 def fix_arabic(text):
     """
     Fixes Arabic text rendering in PDFs:
@@ -119,6 +120,9 @@ def fix_arabic(text):
     """
     if pd.isna(text): return "N/A"
     text = str(text)
+    
+    # Remove emojis first
+    text = remove_emojis(text)
     
     try:
         # Check if text contains Arabic characters

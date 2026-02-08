@@ -2,22 +2,24 @@ import json
 import aiohttp
 import asyncio
 import os
+import http.client
 import pandas as pd
 import numpy as np
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from app.core.config import settings, gemini_client
+from app.graph.market_research_agent import prompts
+from app.graph.market_research_agent.logger_config import get_logger
+
+logger = get_logger("FinanceUtils")
 
 SERPER_API_KEY = settings.SERPER_API_KEY
 
 def detect_currency(idea):
     print(f"   🌍 Detecting location and currency for: '{idea}'...")
     try:
-        prompt = f"""
-        Analyze this business idea: "{idea}"
-        RETURN JSON: {{ "country": "CountryName", "currency_code": "XXX", "currency_symbol": "$" }}
-        """
+        prompt = prompts.detect_currency_prompt(idea)
         res = gemini_client.models.generate_content(model=settings.GEMINI_MODEL_NAME, contents=prompt)
         return json.loads(res.text.replace("```json","").replace("```","").strip())
     except:
@@ -47,13 +49,7 @@ def get_real_world_estimates(idea):
     country = loc_data.get("country", "Global")
     
     print(f"   🤖 Identifying cost drivers in {country} ({curr_code})...")
-    plan_prompt = f"""
-    Business: "{idea}"
-    Location: {country}
-    Currency: {curr_code}
-    TASK: List 4 SIMPLE, BROAD search queries to find real costs.
-    RETURN JSON list of strings.
-    """
+    plan_prompt = prompts.financial_plan_prompt(idea, country, curr_code)
     try:
         res = gemini_client.models.generate_content(model=settings.GEMINI_MODEL_NAME, contents=plan_prompt)
         queries = json.loads(res.text.replace("```json","").replace("```","").strip())
@@ -65,43 +61,29 @@ def get_real_world_estimates(idea):
         market_data += search_cost_data(q) + "\n"
         
     print(f"   🧮 Extracting {curr_code} financial model from search results...")
-    extract_prompt = f"""
-    You are a Conservative CFO.
-    BUSINESS: {idea}
-    MARKET DATA: {market_data}
-    
-    TASK: Build a Financial Estimate.
-    
-    CRITICAL RULES FOR REALISM:
-    1. MARKETING IS EXPENSIVE: Allocate at least 20-30% of revenue to Marketing/CAC.
-    2. SERVERS ARE EXPENSIVE: If it's an AI app, 'Utilities/Server' costs should be high.
-    3. PROFIT MARGIN: A realistic Net Profit is 15-30%, NOT 90%. Adjust expenses up if needed.
-    
-    RETURN JSON (No Markdown):
-    {{
-        "currency": "{curr_code}",
-        "startup_costs": {{
-            "development": 0, "legal": 0, "marketing_launch": 0, "reserves": 0
-        }},
-        "monthly_fixed_costs": {{
-            "server_infrastructure": 0, "marketing_spend": 0, "staff": 0, "misc": 0
-        }},
-        "revenue_assumptions": {{
-            "avg_ticket_price": 0, "daily_customers": 0
-        }},
-        "sources_used": ["List source names"]
-    }}
-    """
+    extract_prompt = prompts.financial_extraction_prompt(idea, market_data, curr_code)
     try:
         res = gemini_client.models.generate_content(model=settings.GEMINI_MODEL_NAME, contents=extract_prompt)
         return json.loads(res.text.replace("```json","").replace("```","").strip())
     except Exception as e:
         print(f"⚠️ Extraction Error: {e}")
+        if 'res' in locals() and hasattr(res, 'text'):
+            logger.debug(f"📝 Raw Gemini Response: {res.text[:500]}...") # Log first 500 chars
         # FIXED: Tech Startup Fallback Defaults
         return {
             "currency": curr_code,
-            "startup_costs": {"development": 20000, "marketing_launch": 10000, "legal": 5000, "reserves": 5000},
-            "monthly_fixed_costs": {"server_infrastructure": 500, "marketing_spend": 2000, "gross_margin_buffer": 1000},
+            "startup_costs": {
+                "development_app_website": 20000, 
+                "marketing_launch_campaign": 10000, 
+                "legal_licenses": 5000, 
+                "reserves": 5000
+            },
+            "monthly_fixed_costs": {
+                "server_cloud_infrastructure": 500, 
+                "marketing_ad_spend": 2000, 
+                "salaries_staff": 5000,
+                "utilities_tools_misc": 1000
+            },
             "revenue_assumptions": {"avg_ticket_price": 15, "daily_customers": 100},
             "sources_used": ["Fallback Estimation (Tech Startup)"]
         }
@@ -123,26 +105,47 @@ def generate_financial_visuals(estimates):
     monthly_rev = customers * avg_ticket * 30
     monthly_profit = monthly_rev - total_monthly
     
-    plt.figure(figsize=(8, 8))
-    plt.pie(startup.values(), labels=startup.keys(), autopct='%1.1f%%', colors=plt.cm.Pastel1.colors)
-    plt.title(f"Startup Costs in {curr}\nTotal: {total_startup:,.0f} {curr}")
-    plt.savefig("data_output/finance_startup_pie.png")
-    plt.close()
-    
-    months = np.arange(0, 25)
-    cash_flow = -total_startup + (months * monthly_profit)
-    break_even_month = total_startup / monthly_profit if monthly_profit > 0 else 99
-    
-    plt.figure(figsize=(10, 6))
-    plt.plot(months, cash_flow, label=f'Net Cash ({curr})', color='green', linewidth=2)
-    plt.axhline(0, color='black', linestyle='--')
-    plt.title(f"Break-Even Analysis (Profit: {monthly_profit:,.0f} {curr}/mo)")
-    plt.xlabel("Months")
-    plt.ylabel(f"Cash Position ({curr})")
-    plt.grid(True, alpha=0.3)
-    plt.legend()
-    plt.savefig("data_output/finance_breakeven_line.png")
-    plt.close()
+    try:
+        plt.figure(figsize=(8, 8))
+        plt.pie(startup.values(), labels=startup.keys(), autopct='%1.1f%%', colors=plt.cm.Pastel1.colors)
+        plt.title(f"Startup Costs in {curr}\nTotal: {total_startup:,.0f} {curr}")
+        plt.savefig("data_output/finance_startup_pie.png")
+        plt.close()
+        
+        months = np.arange(0, 25)
+        
+        # Realistic Growth Curve (Sigmoid-like ramp up over 12 months)
+        # Revenue starts at 10% and grows to 100% by month 12
+        growth_factor = 1 / (1 + np.exp(-0.5 * (months - 6))) 
+        # Normalize to 0.1 - 1.0 range approx
+        growth_factor = (growth_factor - growth_factor.min()) / (growth_factor.max() - growth_factor.min()) * 0.9 + 0.1
+        
+        # Monthly Profit = (Max Revenue * Growth Factor) - Fixed Costs
+        # Note: Valid only for months > 0. Month 0 is just startup cost.
+        monthly_profits = (monthly_rev * growth_factor) - total_monthly
+        monthly_profits[0] = -total_monthly # Month 0 is pure loss/setup
+        
+        # Cumulative Cash Flow
+        cash_flow = -total_startup + np.cumsum(monthly_profits)
+        
+        # Find break-even month (first month where cash_flow > 0)
+        break_even_indices = np.where(cash_flow > 0)[0]
+        break_even_month = break_even_indices[0] if len(break_even_indices) > 0 else 99
+        
+        plt.figure(figsize=(10, 6))
+        plt.plot(months, cash_flow, label=f'Net Cash ({curr})', color='green', linewidth=2)
+        plt.axhline(0, color='black', linestyle='--')
+        plt.title(f"Break-Even Analysis (Profit: {monthly_profit:,.0f} {curr}/mo)")
+        plt.xlabel("Months")
+        plt.ylabel(f"Cash Position ({curr})")
+        plt.grid(True, alpha=0.3)
+        plt.legend()
+        plt.savefig("data_output/finance_breakeven_line.png")
+        plt.close()
+    except Exception as e:
+        print(f"❌ Chart Generation Failed: {e}")
+        # Ensure plot is closed even if error occurs
+        plt.close()
     
     summary = {
         "Metric": ["Currency", "Total Startup", "Monthly Expenses", "Monthly Revenue", "Net Profit", "Break-Even Month"],

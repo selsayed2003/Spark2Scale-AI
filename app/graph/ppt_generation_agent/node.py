@@ -1,6 +1,6 @@
-from app.graph.state import AgentState
+from app.graph.ppt_generation_agent.state import PPTGenerationState
 
-def ppt_generation_node(state: AgentState):
+def ppt_generation_node(state: PPTGenerationState):
     """
     Generates a PowerPoint presentation.
     """
