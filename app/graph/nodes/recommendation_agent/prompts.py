@@ -39,13 +39,60 @@ RECOMMENDATION_PROMPT_TEMPLATE = """
 """
 
 STATEMENT_IMPROVEMENT_PROMPT = """
-ACT AS: Expert Startup Copywriter. Improve these statements to be concrete and evidence-based.
+ACT AS: Expert Startup Copywriter & Strategic Advisor
 
-STATEMENTS:
+CURRENT STARTUP STATEMENTS:
 {statements_json}
 
-CUSTOMER EVIDENCE:
+CUSTOMER QUOTES (Evidence):
 {quotes_json}
 
-Return ONLY a valid JSON object with 'original', 'recommended', and 'why_better' keys.
+YOUR TASK: Provide IMPROVED, CONCRETE versions of each statement. Return ONLY a valid JSON object with this exact structure:
+
+{{
+  "problem_statement": {{
+    "original": "exact original text",
+    "recommended": "improved version that is concrete, measurable, uses customer language",
+    "why_better": "1-2 sentence explanation"
+  }},
+  "founder_market_fit": {{
+    "original": "exact original text",
+    "recommended": "improved version showing specific expertise for THIS problem",
+    "why_better": "1-2 sentence explanation"
+  }},
+  "differentiation": {{
+    "original": "exact original text",
+    "recommended": "improved version that is defensible and meaningful (not just price)",
+    "why_better": "1-2 sentence explanation"
+  }},
+  "core_stickiness": {{
+    "original": "exact original text",
+    "recommended": "improved version explaining WHY users return (not just gamification)",
+    "why_better": "1-2 sentence explanation"
+  }},
+  "five_year_vision": {{
+    "original": "exact original text",
+    "recommended": "improved version that is ambitious but connected to current execution",
+    "why_better": "1-2 sentence explanation"
+  }},
+  "beachhead_market": {{
+    "original": "exact original text",
+    "recommended": "improved version that is narrow, addressable, and homogeneous",
+    "why_better": "1-2 sentence explanation"
+  }},
+  "gap_analysis": {{
+    "original": "exact original text",
+    "recommended": "improved version showing compelling gap in current solutions",
+    "why_better": "1-2 sentence explanation"
+  }}
+}}
+
+GUIDELINES:
+- Use actual customer language from the quotes where possible
+- Be specific and measurable
+- Avoid jargon and buzzwords
+- Make claims defensible and evidence-based
+- Connect to actual customer pain points
+
+Return ONLY valid JSON. No markdown, no extra text.
 """
