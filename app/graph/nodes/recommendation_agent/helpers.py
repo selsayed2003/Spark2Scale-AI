@@ -23,5 +23,8 @@ def extract_key_insights(raw_data):
         "differentiation": prod.get("differentiation", "Unknown"),
         "core_stickiness": prod.get("core_stickiness", "Unknown"),
         "active_users": trac.get("active_users_monthly", 0),
-        "early_revenue": trac.get("early_revenue", "USD 0")
+        "early_revenue": trac.get("early_revenue", "USD 0"),
+        "five_year_vision": ev.get("vision_and_strategy", {}).get("five_year_vision", "Unknown"),
+        "beachhead_market": ev.get("market_and_scope", {}).get("beachhead_market", "Unknown"),
+        "gap_analysis": prob.get("gap_analysis", "Unknown")
     }

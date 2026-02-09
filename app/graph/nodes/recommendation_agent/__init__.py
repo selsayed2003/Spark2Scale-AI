@@ -1,1 +1,1 @@
-from .workflow import run_recommendation_agent #
+from .node import recommendation_node

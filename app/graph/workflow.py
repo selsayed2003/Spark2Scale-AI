@@ -8,21 +8,21 @@ from app.graph.nodes.ppt_generation_agent import ppt_generation_node
 def create_graph():
     workflow = StateGraph(AgentState)
 
-    # Add nodes
-    workflow.add_node("evaluation", evaluation_node)
-    workflow.add_node("recommendation", recommendation_node)
-    workflow.add_node("market_research", market_research_node)
-    workflow.add_node("ppt_generation", ppt_generation_node)
+    # Add nodes (using different names from state keys to avoid conflicts)
+    workflow.add_node("evaluate", evaluation_node)
+    workflow.add_node("recommend", recommendation_node)
+    workflow.add_node("research", market_research_node)
+    workflow.add_node("generate_ppt", ppt_generation_node)
 
     # Define edges - for now, we'll do a sequential flow
     # Idea -> Market Research -> Evaluation -> Recommendation -> PPT
     
-    workflow.set_entry_point("market_research")
+    workflow.set_entry_point("research")
     
-    workflow.add_edge("market_research", "evaluation")
-    workflow.add_edge("evaluation", "recommendation")
-    workflow.add_edge("recommendation", "ppt_generation")
-    workflow.add_edge("ppt_generation", END)
+    workflow.add_edge("research", "evaluate")
+    workflow.add_edge("evaluate", "recommend")
+    workflow.add_edge("recommend", "generate_ppt")
+    workflow.add_edge("generate_ppt", END)
 
     return workflow.compile()
 

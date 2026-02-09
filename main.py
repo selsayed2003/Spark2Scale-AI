@@ -2,10 +2,10 @@ import uvicorn
 from app.api.main import app
 import os
 from dotenv import load_dotenv
-from recommendation_agent.workflow import run_recommendation_agent
+from app.graph.nodes.recommendation_agent.workflow import run_recommendation_agent
 
-# 1. Load environment variables from .env file
-load_dotenv()
+# 1. Load environment variables from .env file (override=True ensures .env takes precedence over system env vars)
+load_dotenv(override=True)
 
 # 2. Retrieve the API Key
 MY_API_KEY = os.getenv("GEMINI_API_KEY")
@@ -124,12 +124,43 @@ EVAL_OUTPUT = {
 
 if __name__ == "__main__":
     if not MY_API_KEY:
-        print("ERROR: GEMINI_API_KEY not found. Please check your .env file.")
+        print("[ERROR] GEMINI_API_KEY not found. Please check your .env file.")
+        print("\nTo fix this:")
+        print("1. Create a .env file in the project root if it doesn't exist")
+        print("2. Add: GEMINI_API_KEY=your_api_key_here")
+        print("3. Get your API key from: https://aistudio.google.com/apikey")
     else:
         print("--- STARTING RECOMMENDATION AGENT ---")
+        print(f"Using API Key: {MY_API_KEY[:10]}...{MY_API_KEY[-4:] if len(MY_API_KEY) > 14 else '***'}")
         
-        # Execute the workflow
-        report = run_recommendation_agent(RAW_INPUT, EVAL_OUTPUT, MY_API_KEY)
-        
-        print("\n--- FINAL REPORT ---\n")
-        print(report)
+        try:
+            # Execute the workflow
+            result = run_recommendation_agent(RAW_INPUT, EVAL_OUTPUT, MY_API_KEY, save_output=True)
+            
+            # Handle tuple return (report, output_paths)
+            if isinstance(result, tuple):
+                report, output_paths = result
+                print("\n--- FINAL REPORT ---\n")
+                print(report)
+                print("\n" + "=" * 80)
+                print("OUTPUT FILES SAVED:")
+                print("=" * 80)
+                print(f"Request ID: {output_paths['request_id']}")
+                print(f"Folder: {output_paths['folder']}")
+                print(f"\nFiles created:")
+                for file_type, file_path in output_paths['files'].items():
+                    print(f"  - {file_type.upper()}: {file_path}")
+            else:
+                # Backward compatibility
+                print("\n--- FINAL REPORT ---\n")
+                print(result)
+                
+        except ValueError as e:
+            print(f"\n{e}")
+            print("\nFor more help, see: RUN_INSTRUCTIONS.md")
+        except Exception as e:
+            print(f"\n[ERROR] Unexpected error: {e}")
+            print("\nPlease check:")
+            print("1. Your API key is valid and active")
+            print("2. You have internet connection")
+            print("3. The Gemini API is accessible")
