@@ -8,22 +8,30 @@ class AgentState(TypedDict):
     # --- INPUT ---
     user_data: Dict[str, Any]
     
-    # --- OUTPUTS ---
-    # Team Branch
+    # --- EXISTING OUTPUTS ---
     team_report: Annotated[Dict[str, Any], operator.ior]
-    
-    # Problem Branch
     problem_report: Annotated[Dict[str, Any], replace_reducer]
-    search_results: Annotated[Dict[str, Any], operator.ior]
-    problem_risk_report: Annotated[str, replace_reducer]
-    problem_contradiction: Annotated[str, replace_reducer]
+    product_report: Annotated[Dict[str, Any], replace_reducer]
     
-    # Product Branch (Fan-Out Outputs)
+    # --- NEW AGENT OUTPUTS ---
+    market_report: Annotated[Dict[str, Any], replace_reducer]
+    traction_report: Annotated[Dict[str, Any], replace_reducer]
+    gtm_report: Annotated[Dict[str, Any], replace_reducer]
+    business_report: Annotated[Dict[str, Any], replace_reducer]
+    vision_report: Annotated[Dict[str, Any], replace_reducer]
+    operations_report: Annotated[Dict[str, Any], replace_reducer]
+
+    # --- INTERMEDIATE ARTIFACTS ---
+    search_results: Annotated[Dict[str, Any], operator.ior]
+    
+    # Product Fan-Out Specifics
     tech_stack: Annotated[Dict[str, Any], operator.ior]
     visual_analysis: Annotated[str, replace_reducer]
     product_contradiction: Annotated[str, replace_reducer]
     product_risk_report: Annotated[str, replace_reducer]
-    product_report: Annotated[Dict[str, Any], replace_reducer]
     
-    # Shared
+    # Shared Validation
     missing_report: Annotated[List[str], operator.add]
+    
+    # Optional: Plan from Planner Node
+    plan: Annotated[Dict[str, Any], replace_reducer]
