@@ -2,6 +2,37 @@ MARKET_RESEARCH_SYSTEM_PROMPT = """
 You are a top-tier market researcher. Analyze the market trends, competitors, and potential opportunities.
 """
 
+def generate_research_plan_prompt(idea, problem):
+    return f"""
+    ROLE: Lead Market Researcher.
+    GOAL: Plan the entire research strategy for "{idea}" (Problem: "{problem}").
+    
+    TASK: Generate a JSON object containing ALL necessary search parameters.
+    
+    OUTPUT STRUCTURE (Strict JSON):
+    {{
+        "competitor_queries": ["query1", "query2 (vs/alternatives)"],
+        "validation_queries": {{
+            "problem": ["query1 (reddit/forum)"],
+            "solution": ["query1 (reviews/feedback)"]
+        }},
+        "market_identity": {{
+            "industry": "Industry Name",
+            "wikipedia_topic": "Wikipedia_Title_With_Underscores",
+            "target_country": "Detect from idea or default 'Global'",
+            "currency_code": "USD/EGP/etc",
+            "currency_symbol": "$"
+        }},
+        "financial_queries": ["salary query", "rent query"]
+    }}
+    
+    RULES:
+    1. Competitor Queries: Focus on finding specific app names (e.g., "{idea} alternatives").
+    2. Wikipedia Topic: Must be a valid existing article title (e.g. "Online_dating_service").
+    3. Country: If idea implies a location (e.g. "in Cairo"), use it. Else Global/US.
+    4. Financials: tailored to the detected country.
+    """
+
 def generate_smart_queries_prompt(business_idea):
     return f"""
     Business Idea: "{business_idea}"

@@ -174,7 +174,9 @@ def get_trending_data(keywords, geo_code='EG'):
         if data.empty: raise Exception("Empty")
         if 'isPartial' in data.columns: del data['isPartial']
         return data, "Google Trends"
-    except: return None, None
+    except Exception as e:
+        logger.warning(f"   ⚠️ Trends Error: {e}")
+        return None, None
 
 def plot_trends(data, source_name, col):
     start_avg = data[col].head(30).mean()
@@ -250,10 +252,7 @@ def analyze_market_size(idea, industry, location, market_data):
         return json.loads(text_resp)
     except Exception as e:
         logger.warning(f"   ⚠️ Sizing Analysis Error: {e}")
-        return {
-            "tam_value": "Unknown", "sam_value": "Unknown", "som_value": "Unknown",
-            "market_type": "Unknown", "scalability_score": "Unknown", "sources": []
-        }
+        return None
 
 def plot_market_funnel(result, industry):
     try:

@@ -14,52 +14,66 @@ logger = get_logger("MarketResearchTools")
 # ==========================================
 # 3. Research Engine (Competitors)
 # ==========================================
+# ==========================================
+# 3. Research Engine (Competitors)
+# ==========================================
 def find_competitors(business_idea: str):
+    # FALLBACK for legacy calls
     logger.info(f"\n🕵️ [Tool 3] Deep Market Research (Strict Mode) for: '{business_idea}'...")
-    
     queries = research_utils.generate_smart_queries(business_idea)
-    all_raw_results = research_utils.execute_serper_search(queries)
+    return _execute_competitor_search(business_idea, queries)
 
+def find_competitors_from_plan(business_idea: str, plan: dict):
+    logger.info(f"\n🕵️ [Tool 3] Deep Market Research (Plan Mode) for: '{business_idea}'...")
+    queries = plan.get("competitor_queries", [f"{business_idea} alternatives"])
+    return _execute_competitor_search(business_idea, queries)
+
+def _execute_competitor_search(business_idea, queries):
+    all_raw_results = research_utils.execute_serper_search(queries)
     if not all_raw_results: return None
         
     # AI Extraction
     competitors = research_utils.extract_competitors_strict(all_raw_results, business_idea)
     
     if competitors:
-        logger.debug(f"Competitors type: {type(competitors)}")
-        logger.debug(f"Competitors content: {competitors}")
         os.makedirs("data_output", exist_ok=True)
         filename = f"data_output/{business_idea.replace(' ', '_')}_competitors.csv"
         
         try:
             df = pd.DataFrame(competitors)
+            if "Features" not in df.columns: df["Features"] = "Standard Features"
+            df.to_csv(filename, index=False)
+            logger.info(f"✅ Success: Extracted {len(df)} VALID competitors.")
+            return filename
         except Exception as e:
             logger.error(f"DataFrame Error: {e}")
             return None
-        # Fix for missing feature columns
-        if "Features" not in df.columns: df["Features"] = "Standard Features"
-        
-        df.to_csv(filename, index=False)
-        logger.info(f"✅ Success: Extracted {len(df)} VALID competitors.")
-        return filename
-    
     return None
 
 # ==========================================
 # 4. Problem Validator
 # ==========================================
-def validate_problem(idea, problem_statement):
+def validate_problem(idea, problem_statement, plan=None):
     logger.info(f"\n😤 [Tool 6] Validating Problem & Quantifying Pain...")
     
-    queries = validator_utils.generate_validation_queries(idea, problem_statement)
+    if plan and "validation_queries" in plan:
+        queries = plan["validation_queries"]
+    else:
+        queries = validator_utils.generate_validation_queries(idea, problem_statement)
+        
+    if not queries:
+        logger.warning("Validation queries missing (API Limit?). Skipping validation.")
+        return None
+        
     raw_results = []
     
-    for q in queries.get("problem_queries", []):
+    # LIMIT TO 1 QUERY PER CATEGORY TO SAVE QUOTA
+    for q in queries.get("problem_queries", [])[:1]:
         res = validator_utils.search_forums(f"site:reddit.com {q}")
         if "organic" in res:
             for item in res["organic"]: raw_results.append(f"[PROBLEM] {item.get('title','')} - {item.get('snippet','')}")
             
-    for q in queries.get("solution_queries", []):
+    for q in queries.get("solution_queries", [])[:1]:
         res = validator_utils.search_forums(f"site:reddit.com {q}")
         if "organic" in res:
             for item in res["organic"]: raw_results.append(f"[SOLUTION] {item.get('title','')} - {item.get('snippet','')}")
@@ -68,6 +82,10 @@ def validate_problem(idea, problem_statement):
 
     analysis = validator_utils.analyze_pain_points(idea, problem_statement, raw_results)
     
+    if not analysis:
+        logger.warning("Validation analysis failed.")
+        return None
+
     os.makedirs("data_output", exist_ok=True)
     with open(f"data_output/{idea.replace(' ', '_')}_validation.json", "w") as f: json.dump(analysis, f, indent=4)
     
@@ -77,14 +95,21 @@ def validate_problem(idea, problem_statement):
 # ==========================================
 # 5. Market Quantifier (Trends)
 # ==========================================
-def fetch_trend_data(keywords, geo_code='EG'):
+def fetch_trend_data(keywords, geo_code='EG', plan=None):
     logger.info(f"\n📊 [Tool 7] Quantifying Market Demand...")
     
-    data, source_name = market_utils.get_trending_data(keywords, geo_code)
+    search_term = keywords[0]
+    if plan and "market_identity" in plan:
+        wiki_topic = plan["market_identity"].get("wikipedia_topic")
+        if wiki_topic: search_term = wiki_topic
+
+    data, source_name = market_utils.get_trending_data([search_term], geo_code)
     
     if data is None:
-        wiki_topic = market_utils.search_wikidata(keywords[0])
-        data, source_name = market_utils.fetch_wikipedia_data(wiki_topic)
+        topic = search_term
+        if not plan:
+            topic = market_utils.search_wikidata(search_term)
+        data, source_name = market_utils.fetch_wikipedia_data(topic)
 
     if data is not None and not data.empty:
         col = data.columns[0]
@@ -95,16 +120,19 @@ def fetch_trend_data(keywords, geo_code='EG'):
         
     return None, None
 
-def calculate_market_size(idea, location="Global"):
+def calculate_market_size(idea, location="Global", plan=None):
     logger.info(f"\n📐 [Tool 11] Calculating TAM, SAM, SOM & Scalability...")
     
-    industry = market_utils.identify_industry(idea)
+    industry = "Unknown"
+    if plan and "market_identity" in plan:
+        industry = plan["market_identity"].get("industry", "Business")
+        location = plan["market_identity"].get("target_country", location)
+    else:
+        industry = market_utils.identify_industry(idea)
     
-    logger.info(f"   🌍 Hunting for '{industry}' market reports...")
+    logger.info(f"   🌍 Hunting for '{industry}' market reports in {location}...")
     queries = [
-        f"{industry} market size {location} 2024 2025",
-        f"{industry} industry revenue {location} statistics",
-        f"Total addressable market {industry} {location}"
+        f"{industry} market size revenue statistics {location} 2024 2025"
     ]
     
     market_data = ""
@@ -112,6 +140,10 @@ def calculate_market_size(idea, location="Global"):
         market_data += market_utils.search_market_reports(q) + "\n"
 
     result = market_utils.analyze_market_size(idea, industry, location, market_data)
+
+    if not result:
+        logger.warning("Market sizing analysis failed.")
+        return None
 
     # Generate Visual
     market_utils.plot_market_funnel(result, industry)
@@ -126,9 +158,25 @@ def calculate_market_size(idea, location="Global"):
 # ==========================================
 # 6. Finance Model
 # ==========================================
-def run_finance_model(idea):
+def run_finance_model(idea, plan=None):
     logger.info(f"\n💰 [Tool 8] Starting Localized Financial Model...")
-    estimates = finance_utils.get_real_world_estimates(idea)
+    
+    if plan and "financial_queries" in plan:
+        currency = plan["market_identity"].get("currency_code", "USD")
+        queries = plan.get("financial_queries", [])
+        
+        market_data = ""
+        for q in queries[:2]:
+            market_data += finance_utils.search_cost_data(q) + "\n"
+            
+        estimates = finance_utils.generate_financial_estimates(idea, market_data, currency)
+    else:
+        estimates = finance_utils.get_real_world_estimates(idea)
+        
+    if not estimates:
+        logger.warning("Financial estimation failed.")
+        return None
+
     return finance_utils.generate_financial_visuals(estimates)
 
 # ==========================================
@@ -187,20 +235,32 @@ def compile_final_pdf(idea_name):
     pdf.add_page()
     logger.info(f"   📄 Generating Page {pdf.page_no()}: Market Validation")
     pdf.chapter_title("Market Validation & Trends")
-    pdf.add_image_centered("data_output/market_demand_chart.png")
-    pdf.chapter_body("Analysis of market interest over the last 12 months.")
+    
+    if os.path.exists("data_output/market_demand_chart.png"):
+        pdf.add_image_centered("data_output/market_demand_chart.png")
+        pdf.chapter_body("Analysis of market interest over the last 12 months.")
+    else:
+        pdf.set_text_color(255, 0, 0)
+        pdf.cell(0, 10, "Analysis Unavailable: Market trend data could not be generated.", 0, 1, 'L')
+        pdf.set_text_color(0, 0, 0)
     
     # --- PAGE 3: FINANCIALS ---
     pdf.add_page()
     logger.info(f"   📄 Generating Page {pdf.page_no()}: Financials")
     pdf.chapter_title("Financial Feasibility")
-    pdf.cell(0, 10, "1. Startup Cost Estimates", 0, 1, 'L')
-    pdf.add_image_centered("data_output/finance_startup_pie.png")
     
-    pdf.add_page()
-    pdf.chapter_title("Profitability Projections")
-    pdf.cell(0, 10, "2. Break-Even Analysis", 0, 1, 'L')
-    pdf.add_image_centered("data_output/finance_breakeven_line.png")
+    if os.path.exists("data_output/finance_summary.csv"):
+        pdf.cell(0, 10, "1. Startup Cost Estimates", 0, 1, 'L')
+        pdf.add_image_centered("data_output/finance_startup_pie.png")
+        
+        pdf.add_page()
+        pdf.chapter_title("Profitability Projections")
+        pdf.cell(0, 10, "2. Break-Even Analysis", 0, 1, 'L')
+        pdf.add_image_centered("data_output/finance_breakeven_line.png")
+    else:
+        pdf.set_text_color(255, 0, 0)
+        pdf.cell(0, 10, "Analysis Unavailable: Financial data could not be generated.", 0, 1, 'L')
+        pdf.set_text_color(0, 0, 0)
 
     # --- PAGE 4: MARKET SIZING ---
     pdf.add_page()
@@ -239,6 +299,10 @@ def compile_final_pdf(idea_name):
         pdf.cell(0, 10, f"Scalability Score: {size_data.get('scalability_score', 'N/A')}", 0, 1)
         pdf.set_font_for_content('', 11)
         pdf.multi_cell(0, 6, size_data.get('scalability_reasoning', 'N/A'))
+    else:
+        pdf.set_text_color(255, 0, 0)
+        pdf.cell(0, 10, "Analysis Unavailable: Unable to generate market sizing data.", 0, 1, 'L')
+        pdf.set_text_color(0, 0, 0)
 
     # --- PAGE 5: COMPETITOR FEATURES ---
     pdf.add_page()
@@ -267,6 +331,10 @@ def compile_final_pdf(idea_name):
                 pdf.ln()
         except Exception as e:
             logger.error(f"   ⚠️ Error adding table: {e}")
+    else:
+        pdf.set_text_color(255, 0, 0)
+        pdf.cell(0, 10, "Analysis Unavailable: Competitor data could not be extracted.", 0, 1, 'L')
+        pdf.set_text_color(0, 0, 0)
             
     # --- OUTPUT ---
     clean_name = idea_name.replace(' ', '_').replace('"', '').replace("'", "")
@@ -274,8 +342,74 @@ def compile_final_pdf(idea_name):
     
     try:
         pdf.output(output_filename)
-        logger.info(f"✅ PDF GENERATED: {output_filename}")
+        logger.info(f"PDF GENERATED: {output_filename}")
         return output_filename
     except Exception as e:
-        logger.error(f"❌ PDF Save Failed: {e}")
+        logger.error(f"PDF Save Failed: {e}")
+        return None
+
+def compile_final_json(idea_name):
+    logger.info(f"\n💾 [Tool 10] Compiling JSON Data Output...")
+    
+    json_data = {
+        "idea_name": idea_name,
+        "executive_summary": "",
+        "market_sizing": {},
+        "competitors": [],
+        "validation": {},
+        "finance": {} # Placeholder for finance data if available in structured format
+    }
+
+    # 1. Executive Summary
+    if os.path.exists("data_output/FINAL_MARKET_REPORT.md"):
+        with open("data_output/FINAL_MARKET_REPORT.md", "r", encoding="utf-8") as f:
+            json_data["executive_summary"] = f.read()
+
+    # 2. Market Sizing
+    if os.path.exists("data_output/market_sizing.json"):
+        with open("data_output/market_sizing.json", "r") as f:
+            json_data["market_sizing"] = json.load(f)
+
+    # 3. Competitors
+    comp_file = f"data_output/{idea_name.replace(' ', '_')}_competitors.csv"
+    if os.path.exists(comp_file):
+        try:
+            df = pd.read_csv(comp_file)
+            json_data["competitors"] = df.to_dict(orient="records")
+        except Exception as e:
+            logger.error(f"Error reading competitors csv: {e}")
+
+    # 4. Validation
+    val_file = f"data_output/{idea_name.replace(' ', '_')}_validation.json"
+    if os.path.exists(val_file):
+        with open(val_file, "r") as f:
+            json_data["validation"] = json.load(f)
+
+    # 5. Finance
+    finance_file = "data_output/finance_estimates.json"
+    if os.path.exists(finance_file):
+        with open(finance_file, "r") as f:
+            json_data["finance"] = json.load(f)
+
+    # 6. Trends
+    trends_file = "data_output/market_stats.csv"
+    if os.path.exists(trends_file):
+        try:
+            df = pd.read_csv(trends_file)
+            json_data["trends"] = df.to_dict(orient="records")
+        except Exception as e:
+            logger.error(f"Error reading trends csv: {e}")
+            
+    try:
+        # Save JSON
+        clean_name = idea_name.replace(' ', '_').replace('"', '').replace("'", "")
+        output_filename = f"data_output/{clean_name}_Market_Report.json"
+        
+        with open(output_filename, "w", encoding="utf-8") as f:
+            json.dump(json_data, f, indent=4)
+            
+        logger.info(f"JSON GENERATED: {output_filename}")
+        return output_filename
+    except Exception as e:
+        logger.error(f"JSON Compilation Failed: {e}")
         return None

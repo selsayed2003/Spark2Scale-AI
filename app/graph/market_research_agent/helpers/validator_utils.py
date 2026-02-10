@@ -27,7 +27,7 @@ def generate_validation_queries(idea, problem_statement):
         return json.loads(res.text.replace("```json","").replace("```","").strip())
     except Exception as e: 
         logger.warning(f"Validation query generation error: {e}")
-        return {"problem_queries": [f"{problem_statement} reddit"], "solution_queries": [f"{idea} reviews"]}
+        return None
 
 def analyze_pain_points(idea, problem_statement, raw_results):
     judge_prompt = prompts.analyze_pain_points_prompt(idea, problem_statement, raw_results)
@@ -37,4 +37,4 @@ def analyze_pain_points(idea, problem_statement, raw_results):
         return json.loads(res.text.replace("```json","").replace("```","").strip())
     except Exception as e:
         logger.error(f"⚠️ Error: {e}")
-        return {}
+        return None
