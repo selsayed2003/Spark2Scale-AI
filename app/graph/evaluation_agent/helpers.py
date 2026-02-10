@@ -1,10 +1,16 @@
 import json
 import base64
 import asyncio
+import os # <--- ADD THIS
+import aiohttp # <--- ADD THIS
+from datetime import datetime # <--- ADD THIS
 from playwright.async_api import async_playwright
 from app.core.logger import get_logger
+try:
+    from langchain_community.tools import DuckDuckGoSearchRun # <--- ADD THIS (Ensure pip install duckduckgo-search)
+except ImportError:
+    DuckDuckGoSearchRun = None 
 
-# --- INITIALIZE LOGGER ---
 logger = get_logger(__name__)
 
 
@@ -143,6 +149,362 @@ def extract_product_data(data):
         "future_vision": data.get("vision_and_strategy", {}).get("future_view")
     }
 
+
+# ==========================================
+# NEW EXTRACTION FUNCTIONS
+# ==========================================
+
+def extract_market_data(data):
+    """
+    Transforms raw startup JSON into the simplified structure needed for Market Analysis.
+    """
+    # Safely get sections
+    snapshot = data.get("company_snapshot", {})
+    # Handle nested structure if inside startup_evaluation or flat
+    if "startup_evaluation" in data:
+        root = data["startup_evaluation"]
+        market = root.get("market_and_scope", {})
+        problem = root.get("problem_definition", {})
+        business = root.get("business_model", {})
+        vision = root.get("vision_and_strategy", {})
+        gtm = root.get("gtm_strategy", {})
+    else:
+        # Fallback if structure is already flat
+        market = data.get("market_and_scope", {})
+        problem = data.get("problem_definition", {})
+        business = data.get("business_model", {})
+        vision = data.get("vision_and_strategy", {})
+        gtm = data.get("gtm_strategy", {})
+
+    return {
+        "entry_point": {
+            "beachhead_definition": market.get("beachhead_market", "Unknown Market"),
+            "target_customer": problem.get("customer_profile", {}),
+            "som_size_claim": market.get("market_size_estimate", "Not specified"),
+            "location": snapshot.get("hq_location", "Global")
+        },
+        "scalability": {
+            "expansion_plan": market.get("expansion_strategy"),
+            "long_term_vision": market.get("long_term_vision"),
+            "future_category": vision.get("category_definition")
+        },
+        "economics": {
+            "price": business.get("average_price_per_customer"),
+            "pricing_model": business.get("pricing_model"),
+            "frequency": problem.get("frequency")
+        },
+        "risks": {
+            "current_competitors": problem.get("current_solution"),
+            "stated_risk": vision.get("primary_risk"),
+            "acquisition_channel": gtm.get("primary_acquisition_channel")
+        }
+    }
+
+def extract_traction_data(data):
+    """
+    Extracts traction metrics tailored strictly to the company's stage (Pre-Seed vs. Seed).
+    """
+    root = data.get("startup_evaluation", data)
+    snapshot = root.get("company_snapshot", {})
+    problem = root.get("problem_definition", {})
+    evidence = problem.get("evidence", {})
+    
+    # 1. Determine Stage
+    stage_raw = snapshot.get("current_stage", "Pre-Seed").lower()
+    
+    # 2. Base Context
+    base_context = {
+        "stage": snapshot.get("current_stage"),
+        "founded_date": snapshot.get("date_founded"),
+        "current_date": datetime.now().strftime("%Y-%m-%d"),
+        "execution_velocity": root.get("founder_and_team", {}).get("execution", {}).get("key_shipments", [])
+    }
+    
+    # 3. Source Sections
+    traction = root.get("traction_metrics", {})
+    gtm = root.get("gtm_strategy", {})
+    biz = root.get("business_model", {})
+
+    # Helper: Determine B2B vs B2C
+    industry = problem.get("customer_profile", {}).get("industry", "").lower()
+    role = problem.get("customer_profile", {}).get("role", "").lower()
+    is_b2b = "business" in industry or "b2b" in industry or "enterprise" in role
+    focus_type = "B2B" if is_b2b else "B2C"
+
+    # PATH A: PRE-SEED TRACTION
+    if "pre" in stage_raw:
+        return {
+            "analysis_type": "Pre-Seed Validation",
+            "context": base_context,
+            "validation_signals": {
+                "users_total": traction.get("user_count", 0),
+                "users_active": traction.get("active_users_monthly", 0),
+                "partnerships_lois": traction.get("partnerships_and_lois", []), 
+                "early_revenue": traction.get("early_revenue", "0"),
+                "interviews_conducted": evidence.get("interviews_conducted", 0),
+                "waitlist_status": "Implied from user count" if traction.get("user_count", 0) > 0 else "None",
+                "focus": focus_type,
+                "sales_cycle": gtm.get("average_sales_cycle", "Unknown")
+            },
+            "defensibility": root.get("product_and_solution", {}).get("defensibility_moat", "None")
+        }
+
+    # PATH B: SEED TRACTION
+    else:
+        return {
+            "analysis_type": "Seed Growth",
+            "context": base_context,
+            "growth_metrics": {
+                "mrr": traction.get("early_revenue"), 
+                "growth_rate_mom": traction.get("revenue_growth_rate", "Not specified"),
+                "retention_metrics": traction.get("retention_metrics", "Not specified"),
+                "paid_users": traction.get("paying_customer_count", 0),
+                "unit_economics": {
+                    "acv": biz.get("average_price_per_customer"),
+                    "cac_hint": "Infer from marketing spend if available"
+                }
+            },
+            "sales_machine": {
+                "closer": gtm.get("deal_closer"),
+                "channel": gtm.get("primary_acquisition_channel"),
+                "sales_cycle": gtm.get("average_sales_cycle"),
+                "sales_motion": gtm.get("sales_motion"),
+                "conversion_friction": "Low" if gtm.get("sales_motion") == "Self-serve" else "High"
+            }
+        }
+
+def extract_gtm_pre_seed(data):
+    root = data.get("startup_evaluation", data)
+    gtm = root.get("gtm_strategy", {})
+    problem = root.get("problem_definition", {})
+    biz = root.get("business_model", {})
+    traction = root.get("traction_metrics", {})
+    
+    return {
+        "analysis_type": "Pre-Seed GTM (Validation)",
+        "context": {
+            "company_name": root.get("company_snapshot", {}).get("company_name"),
+            "founded_date": root.get("company_snapshot", {}).get("date_founded"),
+            "stage": "Pre-Seed"
+        },
+        "target_audience": {
+            "icp_description": problem.get("customer_profile", {}), 
+            "buyer_persona": gtm.get("buyer_persona"),
+            "user_persona": gtm.get("user_persona")
+        },
+        "early_distribution": {
+            "primary_channel": gtm.get("primary_acquisition_channel"),
+            "sales_motion": gtm.get("sales_motion"),
+            "early_revenue": traction.get("early_revenue", "0")
+        },
+        "pricing_hypothesis": {
+            "price_point": biz.get("average_price_per_customer"),
+            "model": biz.get("pricing_model")
+        },
+        "unit_economics": {
+            "burn_rate": biz.get("monthly_burn", 0),
+            "total_users": traction.get("user_count", 0),
+            "paid_users": 0,
+            "revenue": traction.get("early_revenue", 0),
+            "price_point": biz.get("average_price_per_customer", 0)
+        }
+    }
+
+def extract_gtm_seed(data):
+    root = data.get("startup_evaluation", data)
+    gtm = root.get("gtm_strategy", {})
+    biz = root.get("business_model", {})
+    traction = root.get("traction_metrics", {})
+    problem = root.get("problem_definition", {})
+    
+    return {
+        "analysis_type": "Seed GTM (Scalability & Economics)",
+        "context": {
+            "company_name": root.get("company_snapshot", {}).get("company_name"),
+            "stage": "Seed"
+        },
+        "strategy": {
+            "icp_description": problem.get("customer_profile", {}),
+            "personas": {
+                "buyer": gtm.get("buyer_persona"),
+                "user": gtm.get("user_persona")
+            },
+             "pricing_model": biz.get("pricing_model")
+        },
+        "sales_machine": {
+            "primary_channel": gtm.get("primary_acquisition_channel"),
+            "closer": gtm.get("deal_closer"),
+            "sales_cycle": gtm.get("average_sales_cycle"),
+            "sales_motion": gtm.get("sales_motion")
+        },
+        "unit_economics": {
+            "burn_rate": biz.get("monthly_burn"),
+            "total_users": traction.get("user_count"),
+            "paid_users": traction.get("paying_customer_count"),
+            "revenue": traction.get("early_revenue"),
+            "price_point": biz.get("average_price_per_customer"),
+            "growth_rate": traction.get("revenue_growth_rate"),
+            "retention": traction.get("retention_metrics")
+        }
+    }
+
+def extract_business_pre_seed(data):
+    root = data.get("startup_evaluation", data)
+    biz = root.get("business_model", {})
+    traction = root.get("traction_metrics", {})
+    funds = root.get("fundraising_and_use_of_funds", {})
+    
+    problem = root.get("problem_definition", {})
+    customer_profile = problem.get("customer_profile", {})
+    industry = customer_profile.get("industry", "Unknown Sector")
+    role = customer_profile.get("role", "Unknown Buyer")
+    sector_info = f"{industry} (Targeting: {role})"
+
+    return {
+        "analysis_type": "Pre-Seed Economics (Hypothesis)",
+        "sector_context": sector_info,
+        "context": {
+            "stage": "Pre-Seed",
+            "company_name": root.get("company_snapshot", {}).get("company_name")
+        },
+        "monetization_structure": {
+            "pricing_model": biz.get("pricing_model"),
+            "price_point": biz.get("average_price_per_customer"),
+            "gross_margin": biz.get("gross_margin")
+        },
+        "early_signals": {
+            "revenue": traction.get("early_revenue", "0"),
+            "pilots": traction.get("partnerships_and_lois", [])
+        },
+        "cash_health": {
+            "burn_rate": biz.get("monthly_burn"),
+            "runway_months": biz.get("runway_months"),
+            "capital_ask": funds.get("current_round_target"),
+            "spend_plan": funds.get("use_of_funds_over_next_18_months")
+        }
+    }
+
+def extract_business_seed(data):
+    root = data.get("startup_evaluation", data)
+    biz = root.get("business_model", {})
+    traction = root.get("traction_metrics", {})
+    funds = root.get("fundraising_and_use_of_funds", {})
+    
+    problem = root.get("problem_definition", {})
+    customer_profile = problem.get("customer_profile", {})
+    industry = customer_profile.get("industry", "Unknown Sector")
+    role = customer_profile.get("role", "Unknown Buyer")
+    sector_info = f"{industry} (Targeting: {role})"
+    
+    raw_mrr = traction.get("monthly_recurring_revenue")
+    
+    if not raw_mrr or raw_mrr == "0":
+        try:
+            users = float(traction.get("number_of_paying_customers") or 0)
+            price = float(biz.get("average_price_per_customer") or 0)
+            mrr_value = users * price
+        except:
+            mrr_value = 0
+    else:
+        mrr_value = raw_mrr
+
+    return {
+        "analysis_type": "Seed Economics (Unit Metrics)",
+        "sector_context": sector_info,
+        "context": {
+            "stage": "Seed",
+            "company_name": root.get("company_snapshot", {}).get("company_name")
+        },
+        "monetization_structure": {
+            "pricing_model": biz.get("pricing_model"),
+            "price_point": biz.get("average_price_per_customer"),
+            "gross_margin": biz.get("gross_margin")
+        },
+        "cash_health": {
+            "burn_rate": biz.get("monthly_burn"),
+            "runway_months": biz.get("runway_months"),
+            "capital_ask": funds.get("current_round_target"),
+            "spend_plan": funds.get("use_of_funds_over_next_18_months")
+        },
+        "revenue_momentum": {
+            "mrr": mrr_value,
+            "is_mrr_calculated": (not raw_mrr or raw_mrr=="0"),
+            "growth_rate": traction.get("revenue_growth_rate", "0%"),
+            "paying_customers": traction.get("number_of_paying_customers")
+        },
+        "retention_health": {
+            "churn_metric": traction.get("retention_metrics"), 
+            "sales_motion": root.get("gtm_strategy", {}).get("sales_motion") 
+        }
+    }
+
+def extract_vision_data(data):
+    root = data.get("startup_evaluation", data)
+    market = root.get("market_and_scope", {})
+    product = root.get("product_and_solution", {})
+    strategy = root.get("vision_and_strategy", {})
+    problem = root.get("problem_definition", {})
+
+    return {
+        "analysis_type": "Vision & Narrative Check",
+        "context": {
+            "stage": root.get("company_snapshot", {}).get("current_stage", "Pre-Seed"),
+            "company_name": root.get("company_snapshot", {}).get("company_name")
+        },
+        "north_star": {
+            "5_year_vision": strategy.get("five_year_vision"),
+            "long_term_market": market.get("long_term_market_vision"),
+            "expansion_plan": market.get("expansion_strategy")
+        },
+        "category_play": {
+            "definition": strategy.get("category_definition"),
+            "differentiation": product.get("differentiation"),
+            "moat": product.get("defensibility_moat")
+        },
+        "customer_obsession": {
+            "problem_statement": problem.get("problem_statement"),
+            "customer_quotes": problem.get("evidence", {}).get("customer_quotes", [])
+        },
+        "risk_awareness": {
+            "primary_risk": strategy.get("primary_risk")
+        }
+    }
+
+def extract_operations_data(data):
+    root = data.get("startup_evaluation", data)
+    snapshot = root.get("company_snapshot", {})
+    founders = root.get("founder_and_team", {}).get("founders", [])
+    economics = root.get("business_model", {})
+    fundraising = root.get("fundraising_and_use_of_funds", {})
+
+    total_founder_equity = sum([float(f.get("ownership_percentage", 0) or 0) for f in founders])
+    raw_industry = root.get("problem_definition", {}).get("customer_profile", {}).get("industry", "Technology")
+    sector = raw_industry.split("/")[0].strip() if "/" in raw_industry else raw_industry
+    
+    return {
+        "analysis_type": "Operational Readiness Check",
+        "context": {
+            "stage": snapshot.get("current_stage", "Pre-Seed"),
+            "location": snapshot.get("hq_location", "Global"),
+            "sector": sector,
+            "round_target": snapshot.get("current_round", {}).get("target_amount"),
+            "target_close": snapshot.get("current_round", {}).get("target_close_date")
+        },
+        "cap_table": {
+            "total_founder_equity": total_founder_equity,
+            "founder_count": len(founders),
+            "existing_investors": fundraising.get("existing_investors", "None")
+        },
+        "financial_health": {
+            "monthly_burn": economics.get("monthly_burn"),
+            "runway_months": economics.get("runway_months"),
+            "gross_margin": economics.get("gross_margin")
+        },
+        "the_plan": {
+            "use_of_funds": fundraising.get("use_of_funds", []),
+            "milestones": fundraising.get("key_milestones", "")
+        }
+    }
 def check_missing_fields(data, parent_path=""):
     '''Recursively checks for empty values in a nested JSON object to identify incomplete data.
     
@@ -209,3 +571,74 @@ async def capture_screenshot(url: str):
             
     except Exception as e:
         return {"error": f"Playwright Driver Error: {str(e)}"}
+    
+
+# ==========================================
+# SEARCH HELPER FUNCTIONS (ASYNC OPTIMIZED)
+# ==========================================
+
+def generate_queries(vision_data: dict) -> tuple[str, list]:
+    """Helper to generate queries for Vision Analysis."""
+    current_year = datetime.now().year
+    forecast_year = current_year + 5
+    category = vision_data.get("category_play", {}).get("definition", "")
+    search_topic = category if len(category) > 3 else "startup market trends"
+    
+    queries = [
+        f"future of {search_topic} market {forecast_year} forecast",
+        f"VC investment trends in {search_topic} {current_year}",
+        f"is {search_topic} market growing or shrinking {current_year}?",
+        f"risks and regulation for {search_topic} startups {current_year}"
+    ]
+    return search_topic, queries
+
+async def get_market_signals_serper(vision_data: dict) -> str:
+    """Runs search using Google Serper API via Async HTTP (Parallelized)."""
+    logger.info("🌐 Running Market Search (Serper/Google)...")
+    
+    api_key = os.environ.get("SERPER_API_KEY")
+    if not api_key: return "No Serper API Key found."
+
+    _, queries = generate_queries(vision_data)
+    raw_results = []
+    url = "https://google.serper.dev/search"
+    headers = {
+        'X-API-KEY': api_key,
+        'Content-Type': 'application/json'
+    }
+    
+    # --- HELPER FOR SINGLE REQUEST ---
+    async def fetch_query(session, q):
+        try:
+            async with session.post(url, headers=headers, json={"q": q}) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    organic = data.get('organic', [])[:2] 
+                    return [f"SOURCE: {q}\nTitle: {r.get('title')}\nSnippet: {r.get('snippet')}" for r in organic]
+        except Exception as e:
+            logger.error(f"Serper error for query '{q}': {e}")
+        return []
+
+    # --- EXECUTE IN PARALLEL ---
+    async with aiohttp.ClientSession() as session:
+        tasks = [fetch_query(session, q) for q in queries]
+        results_list = await asyncio.gather(*tasks)
+        
+        # Flatten results
+        for res in results_list:
+            raw_results.extend(res)
+
+    return "\n".join(raw_results) if raw_results else "No Serper results found."
+
+def get_market_signals_duckduckgo(vision_data: dict) -> str:
+    """Runs search using DuckDuckGo (Synchronous Fallback)."""
+    if DuckDuckGoSearchRun is None: return "DuckDuckGo tool not installed."
+    logger.info("   -> Running DuckDuckGo Search (Fallback)...")
+    _, queries = generate_queries(vision_data)
+    raw_results = []
+    try:
+        ddg = DuckDuckGoSearchRun()
+        raw_results.append(f"SOURCE (DuckDuckGo): {ddg.run(queries[0])[:300]}...") 
+        return "\n".join(raw_results)
+    except Exception as e:
+        return f"DuckDuckGo Error: {str(e)}"

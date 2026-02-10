@@ -1,0 +1,92 @@
+{
+  "problem_report": {
+    "score": "3.0/5",
+    "explanation": "The problem is a 'Clear Pain' (Score 3). The web search provides strong validation for the core pain points of idea validation, business document creation, and investor outreach for early-stage founders. Multiple search results directly address challenges in validating startup ideas and the need for business plans and pitch decks. The frequency is stated as 'High' due to startup failure rates, and the impact is described as 'Time, Money, and Risk'. However, the score is capped at 3 due to the 'Market Education Risk' flag from the Risk Report, indicating that while the problem is real, educating the market on the specific solution might be challenging. Additionally, a deduction of 2 points was applied due to a significant 'Contradiction' identified in the Evidence Contradiction, where the general customer evidence ('market research' quote) does not strongly support the complex need described in the problem statement. The 'Audience Specificity Risk' and 'Clarity Risk' also contribute to a slightly lower score, suggesting areas for refinement.",
+    "confidence_level": "Medium",
+    "red_flags": [
+      "Risk Report - Audience Specificity Risk: The customer profile is too broad, targeting 'Early-stage founders' without further segmentation.",
+      "Risk Report - Clarity Risk: The problem statement uses jargon like 'structured system' and 'essential business documents' which could be simplified for immediate understanding.",
+      "Contradiction Report - Evidence Contradiction: The problem statement describes a need for sophisticated tools, but the customer evidence ('market research' quote) is general and doesn't specifically validate this complex need.",
+      "Contradiction Report - Scope Contradiction: The beachhead market ('Startup owners') is broader than the specific customer profile provided.",
+      "Contradiction Report - Insider Contradiction: The claim of 'lived experience' cannot be substantiated due to missing 'prior_experience' data."
+    ],
+    "green_flags": [
+      "Web Search Evidence - Pain Validation: Multiple search results confirm the challenges early-stage founders face in validating ideas, creating business plans, and preparing for investors.",
+      "Web Search Evidence - Solution Relevance: Search results for 'startup validation frameworks' and 'investor pitch deck templates' indicate existing interest and solutions in related areas.",
+      "Problem Data - Frequency: The stated 'High' frequency, linked to startup failure rates, suggests a significant and recurring pain point.",
+      "Problem Data - Impact Metrics: The identified impact of 'Time, Money, and Risk' is a clear indicator of a substantial problem."
+    ]
+  },
+  "search_results": {
+    "generated_queries": {
+      "pain_query": "early stage founder idea validation challenges",
+      "symptom_query": "how to create business plan for startup funding",
+      "solution_query": "startup validation frameworks and investor pitch deck templates"
+    },
+    "pain_validation_search": [
+      {
+        "title": "What's been your biggest challenge in validating your startup idea?",
+        "link": "https://www.reddit.com/r/Entrepreneur/comments/1gf6uit/whats_been_your_biggest_challenge_in_validating/",
+        "snippet": "So I'm curious: what's been the biggest challenge for you in validating your idea? Finding customers to talk to? Getting honest feedback?"
+      },
+      {
+        "title": "Is Your Startup Idea Any Good? Borrow These Validation Tactics ...",
+        "link": "https://review.firstround.com/unconventional-tactics-for-validating-your-startup-idea/",
+        "snippet": "Founders share the unconventional ways they found conviction in their startup ideas."
+      },
+      {
+        "title": "Challenges faced during startup idea validation and successes/pitfalls",
+        "link": "https://www.facebook.com/groups/coloradostartups/posts/8640653082661800/",
+        "snippet": "This is an in-depth guide that looks at both B2B and B2C startups and the various strategies that can be implemented to validate your startup ..."
+      },
+      {
+        "title": "Startup Idea Validation Basics: How I Test My Next Big Idea Before I ...",
+        "link": "https://medium.com/@isabellapennington/startup-idea-validation-basics-how-i-test-my-next-big-idea-before-i-build-d706d3f3397b",
+        "snippet": "What problem am I solving? \u00b7 Who is going to buy this? \u00b7 How could I possibly charge for it? \u00b7 Is this a big, reachable market? \u00b7 Does this problem ..."
+      },
+      {
+        "title": "How to Write a Business Plan for a Startup: A Comprehensive Guide",
+        "link": "https://foundersnetwork.com/how-to-write-a-business-plan-for-a-startup/",
+        "snippet": "Step 1: Executive Summary \u00b7 Step 2: Company Description \u00b7 Step 3: Market Research \u00b7 Step 4: Products or Services \u00b7 Step 5: Marketing and Sales Strategy \u00b7 Step 6: ..."
+      },
+      {
+        "title": "10-Step Guide to Starting Your Startup Business - J.P. Morgan",
+        "link": "https://www.jpmorgan.com/insights/business-planning/10-step-guide-to-starting-your-startup-business",
+        "snippet": "1. Identify a problem or need \u00b7 2. Conduct market research \u00b7 3. Develop a business plan \u00b7 4. Establish a legal structure \u00b7 5. Build a minimum viable ..."
+      },
+      {
+        "title": "Business Plan Template for a Startup Business - SCORE.org",
+        "link": "https://www.score.org/resource/template/business-plan-template-a-startup-business",
+        "snippet": "This template will guide you step-by-step. The template includes easy-to-follow instructions for completing each business plan section."
+      },
+      {
+        "title": "How to Create a Business Plan That Attracts Investors",
+        "link": "https://www.advantagecap.com/news/how-to-create-a-business-plan-that-attracts-investors/",
+        "snippet": "A strong business plan should be in place and up to date as the company matures and seeks growth capital to finance the future. For companies ..."
+      }
+    ],
+    "competitor_search": [
+      {
+        "title": "12 Startup Pitch Deck Examples [+ Template] - HubSpot",
+        "link": "https://www.hubspot.com/startups/fundraising/startup-pitch-decks",
+        "snippet": "Startup pitch decks are key to securing funds for growing your business. Study these successful pitch decks and use our template to help your startup grow."
+      },
+      {
+        "title": "Series A Pitch Deck Template for AI Startups - Headline",
+        "link": "https://headline.com/blog-latest/article-latest/series-a-pitch-deck-template",
+        "snippet": "This template seeks to be a state-of-the-art guide designed to help founders articulate their vision with clarity, depth, and precision."
+      },
+      {
+        "title": "Pitch Deck 101: A Foolproof Template For Any Startup - Medium",
+        "link": "https://medium.com/the-new-distributed-workforce/pitch-deck-101-a-foolproof-formula-for-any-business-with-template-7bd6a88dcb8",
+        "snippet": "I put together a pitch deck framework and template that any business can follow, based on my own experiences and industry standards for attracting serious ..."
+      },
+      {
+        "title": "Pitch Deck Examples from 35+ Killer Startups - Slidebean",
+        "link": "https://slidebean.com/pitch-deck-examples",
+        "snippet": "We templatized the best startup Pitch Deck Examples from successful startups like Airbnb, Uber, and Tesla. PDF downloads are included with each one of them."
+      }
+    ]
+  },
+  "problem_risk_report": "## Problem Risks\n* **Audience Specificity Risk**: The customer profile is too broad, targeting \"Early-stage founders\" without further segmentation.\n  * *Evidence:* \"customer_profile\": { \"role\": \"Early-stage founders\", \"company_size\": \"2-50 people\", \"industry\": \"Business / Tech Startups\" }\n* **Clarity Risk**: The problem statement uses jargon like \"structured system\" and \"essential business documents\" which could be simplified for immediate understanding.\n  * *Evidence:* \"Early-stage founders lack a structured system to validate ideas, develop essential business documents, and reach investors.\""
+}
