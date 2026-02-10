@@ -57,36 +57,21 @@ def get_real_world_estimates(idea):
         queries = [f"commercial rent prices {country}", f"average salary {country}", f"coffee bean price {country}"]
 
     market_data = ""
-    for q in queries:
+    # LIMIT TO 2 QUERIES TO SAVE QUOTA
+    for q in queries[:2]:
         market_data += search_cost_data(q) + "\n"
         
     print(f"   🧮 Extracting {curr_code} financial model from search results...")
-    extract_prompt = prompts.financial_extraction_prompt(idea, market_data, curr_code)
+    return generate_financial_estimates(idea, market_data, curr_code)
+
+def generate_financial_estimates(idea, market_data, currency_code):
+    extract_prompt = prompts.financial_extraction_prompt(idea, market_data, currency_code)
     try:
         res = gemini_client.models.generate_content(model=settings.GEMINI_MODEL_NAME, contents=extract_prompt)
         return json.loads(res.text.replace("```json","").replace("```","").strip())
     except Exception as e:
         print(f"⚠️ Extraction Error: {e}")
-        if 'res' in locals() and hasattr(res, 'text'):
-            logger.debug(f"📝 Raw Gemini Response: {res.text[:500]}...") # Log first 500 chars
-        # FIXED: Tech Startup Fallback Defaults
-        return {
-            "currency": curr_code,
-            "startup_costs": {
-                "development_app_website": 20000, 
-                "marketing_launch_campaign": 10000, 
-                "legal_licenses": 5000, 
-                "reserves": 5000
-            },
-            "monthly_fixed_costs": {
-                "server_cloud_infrastructure": 500, 
-                "marketing_ad_spend": 2000, 
-                "salaries_staff": 5000,
-                "utilities_tools_misc": 1000
-            },
-            "revenue_assumptions": {"avg_ticket_price": 15, "daily_customers": 100},
-            "sources_used": ["Fallback Estimation (Tech Startup)"]
-        }
+        return None
 
 def generate_financial_visuals(estimates):
     print("   📊 Generating Localized Financial Charts...")
@@ -152,6 +137,10 @@ def generate_financial_visuals(estimates):
         "Value": [curr, total_startup, total_monthly, monthly_rev, monthly_profit, break_even_month]
     }
     pd.DataFrame(summary).to_csv("data_output/finance_summary.csv", index=False)
+    
+    # Save raw estimates to JSON for final report compilation
+    with open("data_output/finance_estimates.json", "w") as f:
+        json.dump(estimates, f, indent=4)
     
     with open("data_output/finance_sources.txt", "w") as f:
         f.write("SOURCES USED:\n")

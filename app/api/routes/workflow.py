@@ -1,49 +1,53 @@
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from fastapi import APIRouter, HTTPException, BackgroundTasks
 from app.graph.market_research_agent.workflow import market_research_app
-from app.graph.evaluation_agent.workflow import evaluation_app
-from app.graph.recommendation_agent.workflow import recommendation_app
-from app.graph.ppt_generation_agent.workflow import ppt_generation_app
+from app.api.schemas import ResearchRequest, ResearchResponse
+from app.graph.market_research_agent.logger_config import get_logger
+
+logger = get_logger("API")
 
 router = APIRouter()
 
-class WorkflowInput(BaseModel):
-    idea: str
-    problem: str = "General Problem" # Default if not provided
-
-@router.post("/market_research/invoke")
-async def invoke_market_research(input_data: WorkflowInput):
+@router.post("/research", response_model=ResearchResponse)
+async def run_market_research(request: ResearchRequest):
+    logger.info(f"Received API Request for Idea: '{request.idea}'")
+    print("DEBUG: VERSION CHECK - LOADED NEW CODE WITH NONE CHECK", flush=True)
+    
+    initial_state = {
+        "input_idea": request.idea,
+        "input_problem": request.problem
+    }
+    
     try:
-        initial_state = {"input_idea": input_data.idea, "input_problem": input_data.problem}
+        print(f"DEBUG: Invoking with {initial_state}", flush=True)
         result = market_research_app.invoke(initial_state)
-        return result
+        print(f"DEBUG: Result type: {type(result)}", flush=True)
+        print(f"DEBUG: Result: {result}", flush=True)
+        
+        if result is None:
+            raise ValueError("Workflow invocation returned None")
+            
+        pdf_path = result.get("pdf_path")
+        json_path = result.get("json_path")
+        
+        # Read the JSON content to return in response
+        json_content = {}
+        if json_path:
+            import json
+            import os
+            try:
+                if os.path.exists(json_path):
+                    with open(json_path, "r", encoding="utf-8") as f:
+                        json_content = json.load(f)
+            except Exception as read_err:
+                logger.error(f"Failed to read JSON output: {read_err}")
+        
+        return ResearchResponse(
+            message="Market Research Completed Successfully",
+            pdf_path=pdf_path,
+            json_path=json_path,
+            data=json_content
+        )
+        
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.post("/evaluation/invoke")
-async def invoke_evaluation(input_data: WorkflowInput): # Input might need adjustment based on agent needs
-    try:
-        # Evaluation needs 'market_research' input usually, but for now just mapping idea
-        initial_state = {"market_research": f"Research for {input_data.idea}"} 
-        result = evaluation_app.invoke(initial_state)
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.post("/recommendation/invoke")
-async def invoke_recommendation(input_data: WorkflowInput):
-    try:
-        initial_state = {"evaluation": f"Evaluation for {input_data.idea}"}
-        result = recommendation_app.invoke(initial_state)
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.post("/ppt_generation/invoke")
-async def invoke_ppt_generation(input_data: WorkflowInput):
-    try:
-        initial_state = {"recommendation": f"Recommendation for {input_data.idea}"}
-        result = ppt_generation_app.invoke(initial_state)
-        return result
-    except Exception as e:
+        logger.error(f"API Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
