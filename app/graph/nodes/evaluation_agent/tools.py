@@ -16,33 +16,75 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_ollama import ChatOllama
 from langchain_google_genai.chat_models import ChatGoogleGenerativeAIError
 from google.api_core.exceptions import ResourceExhausted
+from langchain_community.utilities import GoogleSearchAPIWrapper
+from langchain_community.tools import DuckDuckGoSearchRun
 
 # Resilience
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 # Local Imports (Assumed to exist based on your code)
 from prompts import (
+    BUSINESS_MODEL_JUDGE_PROMPT,
     CONTRADICTION_MARKET_PROMPT_TEMPLATE,
+    CONTRADICTION_OPERATIONS_PROMPT_TEMPLATE,
+    CONTRADICTION_PRE_SEED_BIZ_MODEL_PROMPT,
     CONTRADICTION_PRODUCT_PROMPT_TEMPLATE,
+    CONTRADICTION_SEED_BIZ_MODEL_PROMPT,
     CONTRADICTION_TEAM_PROMPT_TEMPLATE,
-    VALUATION_RISK_MARKET_PROMPT_TEMPLATE, 
+    CONTRADICTION_VISION_PROMPT_TEMPLATE,
+    ECONOMIC_JUDGEMENT_PROMPT,
+    OPERATIONS_SCORING_AGENT_PROMPT,
+    RISK_BIZ_MODEL_PRE_SEED_PROMPT,
+    RISK_BIZ_MODEL_SEED_PROMPT,
+    VALUATION_RISK_MARKET_PROMPT_TEMPLATE,
+    VALUATION_RISK_OPS_PRE_SEED_PROMPT,
+    VALUATION_RISK_OPS_SEED_PROMPT, 
     VALUATION_RISK_PROBLEM_PROMPT_TEMPLATE,
     VALUATION_RISK_PRODUCT_PROMPT_TEMPLATE, 
     VALUATION_RISK_TEAM_PROMPT_TEMPLATE, 
     TEAM_SCORING_AGENT_PROMPT, 
     CONTRADICTION_PROBLEM_PROMPT_TEMPLATE, 
     PROBLEM_SCORING_AGENT_PROMPT,
+    VISION_SCORING_AGENT_PROMPT,
     VISUAL_VERIFICATION_PROMPT,
     PRODUCT_SCORING_AGENT_PROMPT,
-    MARKET_SCORING_AGENT_PROMPT
+    MARKET_SCORING_AGENT_PROMPT,
+    CONTRADICTION_PRE_SEED_TRACTION_AGENT_PROMPT,
+    CONTRADICTION_SEED_TRACTION_AGENT_PROMPT,
+    VALUATION_RISK_TRACTION_PRE_SEED_PROMPT,
+    VALUATION_RISK_TRACTION_SEED_PROMPT,
+    TRACTION_SCORING_PRE_SEED_PROMPT,
+    TRACTION_SCORING_SEED_PROMPT,
+    CONTRADICTION_PRE_SEED_GTM_AGENT_PROMPT,
+    CONTRADICTION_SEED_GTM_AGENT_PROMPT,
+    VALUATION_RISK_GTM_PRE_SEED_PROMPT,
+    VALUATION_RISK_GTM_SEED_PROMPT,
+    SCORING_GTM_PRE_SEED_PROMPT,
+    SCORING_GTM_SEED_PROMPT,
+    SCORING_BIZ_PRE_SEED_PROMPT,
+    SCORING_BIZ_SEED_PROMPT,
+    CATEGORY_FUTURE_PROMPT,
+    MARKET_LOCAL_DEPENDENCY_PROMPT,
+    VALUATION_RISK_VISION_PRE_SEED_PROMPT,
+    VALUATION_RISK_VISION_SEED_PROMPT,
+
 )
 from helpers import (
+    extract_business_pre_seed,
+    extract_business_seed,
+    extract_gtm_pre_seed,
+    extract_gtm_seed,
+    extract_operations_data,
     extract_problem_data, 
-    extract_team_data, 
+    extract_team_data,
+    extract_traction_data, 
     load_schema,
     extract_product_data,
     extract_market_data, 
-    capture_screenshot)
+    capture_screenshot,
+    extract_vision_data,
+    get_market_signals_duckduckgo,
+    get_market_signals_serper)
 
 # Load Environment Variables
 load_dotenv()
@@ -497,24 +539,8 @@ def local_dependency_detective(tech_stack: str, acquisition_channel: str, produc
         temperature=0
     )
 
-    analysis_prompt = """
-    You are a Technical Due Diligence Analyst. 
-    Analyze this startup for Platform Risks (Sherlocking, ToS Violations, Dependencies).
-    
-    Context:
-    - Product: "{product}"
-    - Tech Stack: "{tech}"
-    - Acquisition: "{channel}"
-    
-    Respond ONLY with a JSON object in this format:
-    {{
-        "risk_level": "High/Medium/Low",
-        "red_flags": ["List specific risks..."],
-        "search_query_needed": "Search query for recent bans (e.g., 'LinkedIn scraping lawsuits') or 'None'"
-    }}
-    """
-    
-    prompt = PromptTemplate(template=analysis_prompt, input_variables=["product", "tech", "channel"])
+
+    prompt = PromptTemplate(template=MARKET_LOCAL_DEPENDENCY_PROMPT, input_variables=["product", "tech", "channel"])
     chain = prompt | llm | JsonOutputParser()
     
     try:
@@ -579,6 +605,524 @@ def market_risk_agent(market_inputs, tam_result, radar_result, dep_result):
     })
     
     return result
+def traction_risk_agent(traction_data: dict, risk_prompt_template: str) -> str:
+    """
+    Executes the Traction Risk Analysis using a provided prompt template.
+    
+    Params:
+        traction_data: The dictionary containing metrics (from extract_traction_data).
+        risk_prompt_template: The specific string template (Pre-Seed or Seed) to use.
+    """
+    
+    # 1. Setup LLM
+    llm = ChatGoogleGenerativeAI(
+        model="gemini-2.5-flash", 
+        temperature=0, 
+        google_api_key=os.environ.get("GEMINI_API_KEY")
+    )
+
+    # 2. Setup Chain
+    prompt = PromptTemplate.from_template(risk_prompt_template)
+    chain = prompt | llm | StrOutputParser()
+
+    try:
+        # 3. Data Preparation
+        # We dump the specific sub-dictionaries to keep the input clean for the LLM.
+        # We check which keys exist to know what to send.
+        if "validation_signals" in traction_data:
+            # Case: Pre-Seed Data
+            clean_input = {
+                **traction_data.get("validation_signals", {}),
+                "defensibility": traction_data.get("defensibility", "None")
+            }
+        elif "growth_metrics" in traction_data:
+            # Case: Seed Data
+            clean_input = {
+                **traction_data.get("growth_metrics", {}),
+                **traction_data.get("sales_machine", {})
+            }
+        else:
+            # Fallback: Send everything if structure is unknown
+            clean_input = traction_data
+
+        # 4. Invoke
+        result = chain.invoke({
+            "traction_json": json.dumps(clean_input, indent=2)
+        })
+        return result
+
+    except Exception as e:
+        return f"❌ Traction Risk Analysis Failed: {str(e)}"
+    
+def gtm_risk_agent(gtm_data: dict, risk_prompt_template: str) -> str:
+    """
+    Executes the Go-To-Market (GTM) Risk Analysis using a provided prompt template.
+    
+    Params:
+        gtm_data: The dictionary containing metrics (from extract_gtm_pre_seed or extract_gtm_seed).
+        risk_prompt_template: The specific string template (Pre-Seed or Seed) to use.
+    """
+    
+    print("   ... 🤖 Analyzing GTM Risks ...")
+
+    # 1. Setup LLM
+    llm = ChatGoogleGenerativeAI(
+        model="gemini-2.5-flash", 
+        temperature=0, 
+        google_api_key=os.environ.get("GEMINI_API_KEY")
+    )
+
+    # 2. Setup Chain
+    # We use the prompt template provided in the function arguments
+    prompt = PromptTemplate.from_template(risk_prompt_template)
+    chain = prompt | llm | StrOutputParser()
+
+    try:
+        # 3. Data Preparation
+        # We flatten the nested dictionaries so the LLM sees a clean "Snapshot" 
+        # of the Strategy + Execution without deep nesting.
+        
+        clean_input = {}
+
+        # CASE A: Pre-Seed Data (Look for 'early_distribution' key)
+        if "early_distribution" in gtm_data:
+            clean_input = {
+                "stage_context": "Pre-Seed",
+                "target_audience": gtm_data.get("target_audience", {}),      # ICP, Personas
+                "early_distribution": gtm_data.get("early_distribution", {}), # Channel, Hustle
+                "pricing_hypothesis": gtm_data.get("pricing_hypothesis", {})  # Price point
+            }
+
+        # CASE B: Seed Data (Look for 'sales_machine' key)
+        elif "sales_machine" in gtm_data:
+            clean_input = {
+                "stage_context": "Seed",
+                "strategy": gtm_data.get("strategy", {}),       # ICP, Pricing Model
+                "sales_machine": gtm_data.get("sales_machine", {}),  # Closer, Cycle, Motion
+                "unit_economics": gtm_data.get("unit_economics", {})  # CAC, LTV, Burn
+            }
+
+        # CASE C: Fallback (Just send everything if structure is unknown)
+        else:
+            clean_input = gtm_data
+
+        # 4. Invoke
+        # The prompt expects the variable {gtm_json}
+        result = chain.invoke({
+            "gtm_json": json.dumps(clean_input, indent=2)
+        })
+        return result
+
+    except Exception as e:
+        return f"❌ GTM Risk Analysis Failed: {str(e)}"
+
+
+def calculate_economics_with_judgment(gtm_data: dict) -> dict:
+    """
+    Calculates Unit Economics using WallStreetPrep & HBS formulas, 
+    then uses an LLM to render a verdict based on sector benchmarks.
+    """
+    
+    # =========================================================
+    # 1. EXTRACT & CALCULATE RAW METRICS (The Math)
+    # =========================================================
+    
+    # A. Setup Variables
+    econ = gtm_data.get("unit_economics", {}) or gtm_data.get("economics_inputs", {})
+    context = gtm_data.get("context", {})
+    strategy = gtm_data.get("strategy", {})
+    
+    burn = float(econ.get("burn_rate") or 0)
+    total_users = float(econ.get("total_users") or 0)
+    paid_users = float(econ.get("paid_users") or 0)
+    revenue = float(econ.get("revenue") or econ.get("early_revenue") or 0)
+    price = float(econ.get("price_point") or 0)
+    
+    # B. Calculate "New Users" (Flow Metric) - Fixes Stock vs Flow error
+    founded_str = context.get("founded_date")
+    try:
+        f_date = datetime.strptime(founded_str, "%Y-%m-%d") if founded_str else datetime.now()
+        months_alive = max((datetime.now() - f_date).days / 30, 1)
+    except:
+        months_alive = 6
+    
+    avg_new_users_mo = total_users / months_alive
+
+    # C. Calculate Metrics (Based on your Sources)
+    metrics = {
+        "monthly_burn": f"${int(burn)}",
+        "price_point": f"${int(price)}",
+        "revenue": f"${int(revenue)}"
+    }
+
+    # --- CAC (Source: WallStreetPrep - Σ S&M / New Customers) ---
+    # Proxy: We assume 30% of Burn is S&M if not specified
+    est_s_m_spend = burn * 0.30
+    if avg_new_users_mo > 0:
+        metrics["implied_cac"] = round(est_s_m_spend / avg_new_users_mo, 2)
+    else:
+        metrics["implied_cac"] = "N/A (0 Users)"
+
+    # --- Freemium Conversion (Source: Medium/Lincoln Murphy) ---
+    if total_users > 0:
+        metrics["conversion_rate"] = round((paid_users / total_users) * 100, 2)
+    else:
+        metrics["conversion_rate"] = 0
+
+    # --- Payback Period (Proxy for LTV/CAC Rule of 3) ---
+    if isinstance(metrics["implied_cac"], (int, float)) and price > 0:
+        metrics["payback_months"] = round(metrics["implied_cac"] / price, 1)
+    else:
+        metrics["payback_months"] = "Unknown"
+
+    # =========================================================
+    # 2. THE LLM JUDGE (The Verdict)
+    # =========================================================
+
+    # Setup LLM (Gemini Flash is recommended)
+    llm = ChatGoogleGenerativeAI(
+        model="gemini-2.5-flash", 
+        temperature=0, 
+        google_api_key=os.environ.get("GEMINI_API_KEY")
+    )
+
+    # Use the global prompt constant
+    chain = PromptTemplate.from_template(ECONOMIC_JUDGEMENT_PROMPT) | llm | StrOutputParser()
+
+    try:
+        # Extract meaningful context description
+        sector_info = strategy.get("icp_description", "Unknown Tech Startup")
+        
+        judgement_json = chain.invoke({
+            "sector_info": sector_info,
+            "stage": context.get("stage", "Pre-Seed"),
+            "model": strategy.get("pricing_model", "Unknown"),
+            "cac": metrics["implied_cac"],
+            "price": price,
+            "payback": metrics["payback_months"],
+            "conversion": metrics["conversion_rate"],
+            "burn": metrics["monthly_burn"],
+            "revenue": metrics["revenue"],
+            "paid_users": int(paid_users),
+            "users": int(total_users)
+        })
+        
+        # Merge the LLM's judgment into the report
+        try:
+            parsed_judgement = json.loads(judgement_json.strip('`json\n'))
+            metrics["ai_analysis"] = parsed_judgement
+        except:
+             metrics["ai_analysis"] = {"error": "Could not parse AI judgment", "raw": judgement_json}
+
+    except Exception as e:
+        metrics["ai_analysis"] = {"error": str(e)}
+
+    return metrics
+
+
+def evaluate_business_model_with_context(business_data: dict) -> dict:
+    """
+    Calculates Profitability & Solvency, then uses an LLM to benchmark 
+    against the specific sector (SaaS vs Hardware vs E-commerce).
+    """
+    
+    print("   ... 💰 Analyzing Business Model & Economics ...")
+
+    # =========================================================
+    # 1. THE CALCULATOR (Hard Math)
+    # =========================================================
+    structure = business_data.get("monetization_structure", {})
+    cash = business_data.get("cash_health", {})
+    momentum = business_data.get("revenue_momentum", {}) 
+    context = business_data.get("context", {})
+
+    # Defaults
+    price = float(structure.get("price_point") or 0)
+    margin_percent = float(structure.get("gross_margin") or 0)
+    burn = float(cash.get("burn_rate") or 0)
+    runway_stated = float(cash.get("runway_months") or 0)
+    
+    # Calculate Implied Cost (Cost of Goods Sold)
+    cost_to_serve = price * (1 - (margin_percent / 100)) if price > 0 else 0
+
+    # Format Growth
+    growth_raw = momentum.get("growth_rate", "0")
+    
+    # =========================================================
+    # 2. THE LLM JUDGE (Sector Context)
+    # =========================================================
+    
+    # Setup LLM
+    llm = ChatGoogleGenerativeAI(
+        model="gemini-2.5-flash", 
+        temperature=0, 
+        google_api_key=os.environ.get("GEMINI_API_KEY")
+    )
+
+    # Setup Chain
+    chain = PromptTemplate.from_template(BUSINESS_MODEL_JUDGE_PROMPT) | llm | JsonOutputParser()
+    
+    try:
+        # We need to pull "Sector" from the raw inputs if possible, 
+        # or use the "pricing_model" as a proxy.
+        # In your extractors, you might want to pass 'problem_definition' -> 'industry'
+        # For now, we will assume it's passed or generic.
+        sector_context = business_data.get("sector_context", "Tech Startup")
+
+        ai_verdict = chain.invoke({
+            "company_name": context.get("company_name", "Startup"),
+            "stage": context.get("stage", "Pre-Seed"),
+            "sector_info": sector_context,
+            "pricing_model": structure.get("pricing_model", "Unknown"),
+            "price": price,
+            "margin": margin_percent,
+            "burn": int(burn),
+            "runway": runway_stated,
+            "growth": growth_raw,
+            "cost_to_serve": round(cost_to_serve, 2)
+        })
+        
+        # Merge Math + AI Verdict
+        report = {
+            "metrics": {
+                "monthly_burn": f"${int(burn)}",
+                "runway_months": runway_stated,
+                "gross_margin": f"{margin_percent}%",
+                "implied_cost": f"${round(cost_to_serve, 2)}",
+                "growth_rate": growth_raw
+            },
+            "ai_analysis": ai_verdict
+        }
+        return report
+
+    except Exception as e:
+        return {
+            "error": "Business Model Analysis Failed", 
+            "details": str(e)
+        }
+
+def business_risk_agent(business_data: dict, risk_prompt_template: str) -> str:
+    """
+    Runs the Business Model Risk Analysis using the specific prompt for the stage.
+    """
+    
+    # 1. Setup LLM
+    llm = ChatGoogleGenerativeAI(
+        model="gemini-2.5-flash", 
+        temperature=0,
+        google_api_key=os.environ.get("GEMINI_API_KEY")
+    )
+
+    # 2. Define Prompt
+    prompt = PromptTemplate(
+        template=risk_prompt_template,
+        input_variables=["business_data"]
+    )
+
+    # 3. Execution Chain
+    chain = prompt | llm | StrOutputParser()
+    
+    try:
+        # 4. Invoke
+        risk_analysis = chain.invoke({
+            "business_data": json.dumps(business_data, indent=2)
+        })
+        return risk_analysis
+
+    except Exception as e:
+        return f"❌ Error in Business Risk Analysis: {str(e)}"
+
+
+def analyze_category_future(vision_data: dict) -> dict:
+    """
+    Orchestrates the full analysis:
+    1. Runs Serper Search
+    2. Runs DuckDuckGo Search
+    3. Combines data
+    4. Sends to Gemini LLM for final verdict
+    """
+    print("🌐 Starting Forensic Market Analysis...")
+    
+    # 1. EXECUTE SEARCHES
+    serper_text = get_market_signals_serper(vision_data)
+    if "Error" in serper_text or "No Serper" in serper_text:
+        print("   ⚠️ Serper issues detected. Adding DuckDuckGo context...")
+        ddg_text = get_market_signals_duckduckgo(vision_data)
+    else:
+        ddg_text = "" 
+    
+    combined_market_signals = (
+        f"=== GOOGLE SERPER RESULTS ===\n{serper_text}\n\n"
+        f"=== DUCKDUCKGO RESULTS ===\n{ddg_text}"
+    )
+    
+    print("🧠 Synthesizing data with Gemini Flash...")
+
+    # 2. SETUP LLM
+    llm = ChatGoogleGenerativeAI(
+        model="gemini-2.5-flash", 
+        temperature=0,
+        google_api_key=os.environ.get("GEMINI_API_KEY")
+    )
+    
+    # 3. PREPARE MOAT DATA
+    # Extract the Moat from your data to pass to the prompt
+    moat_text = vision_data.get("category_play", {}).get("moat", "None declared")
+    diff_text = vision_data.get("category_play", {}).get("differentiation", "")
+    full_moat = f"{moat_text} (Diff: {diff_text})"
+
+    # 4. BUILD CHAIN
+    prompt = PromptTemplate(
+        template=CATEGORY_FUTURE_PROMPT,
+        input_variables=["category", "problem", "moat", "market_signals"]
+    )
+    
+    chain = prompt | llm | JsonOutputParser()
+    
+    # 5. INVOKE
+    try:
+        result = chain.invoke({
+            "category": vision_data.get("category_play", {}).get("definition", "Unknown"),
+            "problem": vision_data.get("customer_obsession", {}).get("problem_statement", "Unknown"),
+            "moat": full_moat, # <--- Passing the Secret Sauce
+            "market_signals": combined_market_signals
+        })
+        return result
+
+    except Exception as e:
+        return {
+            "error": "Analysis Failed",
+            "details": str(e),
+            "category_verdict": "Unknown"
+        }
+
+
+def vision_risk_agent(vision_data: dict, market_analysis: dict, template: str) -> str:
+    """
+    Analyzes Vision Risks using Stage-Specific Prompts.
+    """
+    # 1. Detect Stage
+    # We grab stage from the context inside vision_data
+    
+    # 3. Setup LLM
+    llm = ChatGoogleGenerativeAI(
+        model="gemini-2.5-flash", 
+        temperature=0.1, # Low temp for strict auditing
+        google_api_key=os.environ.get("GEMINI_API_KEY")
+    )
+    
+    prompt = PromptTemplate(
+        template=template,
+        input_variables=["vision_data", "market_analysis"]
+    )
+    
+    chain = prompt | llm | StrOutputParser()
+    
+    try:
+        result = chain.invoke({
+            "vision_data": json.dumps(vision_data, indent=2),
+            "market_analysis": json.dumps(market_analysis, indent=2)
+        })
+        return result
+    except Exception as e:
+        return f"Error during Vision Risk Analysis: {e}"
+def get_funding_benchmarks(location: str, stage: str, sector: str = "Technology") -> str:
+    """
+    Searches for current VC funding benchmarks based on Stage, Location, AND Sector.
+    Uses standard Serper API (requests) with a DuckDuckGo fallback.
+    """
+    print(f"💰 Searching for Funding Benchmarks ({stage} {sector} in {location})...")
+    
+    current_year = datetime.now().year
+    
+    # 1. Construct Queries
+    queries = [
+        f"average {stage} {sector} startup round size {location} {current_year}",
+        f"average {stage} {sector} startup valuation {location} {current_year}",
+        f"typical founder equity {stage} {sector} startup {location}",
+        f"VC investment trends {sector} {location} {current_year}"
+    ]
+    
+    results = []
+    
+    # 2. Try Serper (Standard HTTP Request)
+    api_key = os.environ.get("SERPER_API_KEY")
+    if api_key:
+        url = "https://google.serper.dev/search"
+        headers = {
+            'X-API-KEY': api_key,
+            'Content-Type': 'application/json'
+        }
+        
+        try:
+            for q in queries:
+                payload = json.dumps({"q": q})
+                response = requests.request("POST", url, headers=headers, data=payload)
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    # Extract top 2 organic results
+                    organic = data.get('organic', [])[:2]
+                    for r in organic:
+                        title = r.get('title', 'No Title')
+                        snippet = r.get('snippet', 'No Snippet')
+                        results.append(f"SOURCE (Serper): {title} - {snippet}")
+                else:
+                    print(f"   ⚠️ Serper Error {response.status_code}: {response.text}")
+                    
+        except Exception as e:
+            print(f"   ⚠️ Serper Request Failed: {str(e)}")
+    else:
+        print("   ⚠️ No SERPER_API_KEY found. Skipping Serper.")
+
+    # 3. Fallback to DuckDuckGo (if Serper failed or found nothing)
+    if not results:
+        print("   ⚠️ Switching to DuckDuckGo fallback...")
+        try:
+            ddg = DuckDuckGoSearchRun()
+            for q in queries:
+                # DuckDuckGo rate limits are strict, so we might only run the first 2 queries
+                res = ddg.run(q)
+                results.append(f"SOURCE (DuckDuckGo): {res[:300]}...")
+        except Exception as e:
+            print(f"   ⚠️ DuckDuckGo failed: {e}")
+            
+    # 4. Final Formatting
+    if not results:
+        return "No specific benchmarks found. Assume global averages."
+    
+    # Join and limit length to prevent token overflow
+    return "\n\n".join(results)[:4000]
+
+
+def operations_risk_agent(operations_data: dict, benchmarks: str, template: str) -> str:
+    """
+    Analyzes Operational Data against Benchmarks using the specific Risk Prompt.
+    """
+
+    # 3. Setup LLM
+    llm = ChatGoogleGenerativeAI(
+        model="gemini-2.5-flash", 
+        temperature=0,
+        google_api_key=os.environ.get("GEMINI_API_KEY")
+    )
+    
+    prompt = PromptTemplate(
+        template=template,
+        input_variables=["operations_data", "benchmarks"]
+    )
+    
+    chain = prompt | llm | StrOutputParser()
+    
+    try:
+        result = chain.invoke({
+            "operations_data": json.dumps(operations_data, indent=2),
+            "benchmarks": benchmarks
+        })
+        return result
+    except Exception as e:
+        return f"Error during Operational Risk Analysis: {e}"
+
 @retry(**RETRY_CONFIG)
 def team_scoring_agent(data_package: dict) -> dict:
     '''Synthesizes risk reports, contradiction checks, and missing info to assign a final team investment score.
@@ -784,6 +1328,416 @@ def market_scoring_agent(data_package: dict) -> dict:
     except Exception as e:
         return {"error": "Market Scoring Failed", "details": str(e)}
 
+
+def traction_scoring_agent(data_package: dict) -> dict:
+    '''
+    Synthesizes traction reports to assign a final momentum score based on stage.
+    Returns: JSON Dictionary
+    '''
+    
+    print("🚀 Running Traction Scoring Agent (JSON Output)...")
+
+    # 1. Setup LLM
+    llm_flash = ChatGoogleGenerativeAI(
+        model="gemini-2.5-flash", 
+        temperature=0,
+        google_api_key=os.environ.get("GEMINI_API_KEY")
+    )
+
+    # 2. Extract Data & Determine Stage
+    # We need to peek at the data to choose the right prompt
+    traction_data = data_package.get("traction_data", {})
+    stage_raw = traction_data.get("context", {}).get("stage", "Pre-Seed").lower()
+
+    # 3. Select Prompt Template
+    if "pre" in stage_raw:
+        print(f"   -> Using Pre-Seed Scoring Logic (Stage: {stage_raw})")
+        template_to_use = TRACTION_SCORING_PRE_SEED_PROMPT
+        rubric_map = {
+            0: "Ghost Town (No Signal)",
+            1: "Minimal Signal (Mom Test Fail)",
+            2: "Early Interest (Accelerator Bar)",
+            3: "Directional Traction (VC Bar)",
+            4: "Strong Engagement (Outlier)",
+            5: "Product-Market Pull (Unicorn Potential)"
+        }
+    else:
+        print(f"   -> Using Seed Scoring Logic (Stage: {stage_raw})")
+        template_to_use = TRACTION_SCORING_SEED_PROMPT
+        rubric_map = {
+            0: "Fake Seed (Disqualified)",
+            1: "Broken Machine (Leaky Bucket)",
+            2: "Early Revenue (Inconsistent)",
+            3: "Directional Traction (VC Bar)",
+            4: "Strong Momentum (Hot Deal)",
+            5: "Product-Market Fit (Clear Winner)"
+        }
+
+    # 4. Define Prompt Object
+    prompt = PromptTemplate(
+        template=template_to_use,
+        input_variables=[
+            "current_date",
+            "internal_data", 
+            "contradiction_report", 
+            "risk_report"
+        ]
+    )
+    today_str = datetime.now().strftime("%Y-%m-%d")
+
+    # 5. Execution Chain
+    chain = prompt | llm_flash | JsonOutputParser()
+    
+    try:
+        # 6. Invoke
+        result_dict = chain.invoke({
+            "current_date": today_str,
+            "internal_data": json.dumps(traction_data, indent=2),
+            "contradiction_report": str(data_package.get("contradiction_report", "None")),
+            "risk_report": str(data_package.get("risk_report", "None"))
+        })
+
+        # 7. Enrich with Rubric Definition
+        # Clean the score string (e.g., "3/5" -> 3)
+        score_str = str(result_dict.get('score', "0")).split("/")[0]
+        score_num = int(score_str) if score_str.isdigit() else 0
+        
+        # Add human-readable context
+        result_dict["rubric_rating"] = rubric_map.get(score_num, "Unknown Status")
+        result_dict["score_numeric"] = score_num 
+        result_dict["stage_evaluated"] = "Pre-Seed" if "pre" in stage_raw else "Seed"
+
+        return result_dict
+
+    except Exception as e:
+        return {
+            "error": "Traction Scoring Failed", 
+            "details": str(e),
+            "score": "0/5",
+            "score_numeric": 0
+        }
+
+def gtm_scoring_agent(gtm_data: dict, economics_report: dict, contradiction_report: str, risk_report: str) -> dict:
+    '''
+    Synthesizes GTM reports (Math, Risks, Contradictions) to assign a final strategy score.
+    Returns: JSON Dictionary
+    '''
+    
+    print("🚀 Running GTM Scoring Agent (JSON Output)...")
+
+    # 1. Setup LLM
+    llm_flash = ChatGoogleGenerativeAI(
+        model="gemini-2.5-flash", 
+        temperature=0,
+        google_api_key=os.environ.get("GEMINI_API_KEY")
+    )
+
+    # 2. Determine Stage
+    # We look at the 'context' block inside gtm_data or fallback to a default
+    stage_raw = gtm_data.get("context", {}).get("stage", "Pre-Seed").lower()
+    if not stage_raw and "stage_context" in gtm_data:
+         stage_raw = gtm_data["stage_context"].lower()
+
+    # 3. Select Prompt Template & Rubric Map
+    if "pre" in stage_raw:
+        print(f"   -> Using Pre-Seed GTM Logic (Stage: {stage_raw})")
+        template_to_use = SCORING_GTM_PRE_SEED_PROMPT
+        rubric_map = {
+            0: "No GTM Thinking (Disqualified)",
+            1: "Generic / Unrealistic",
+            2: "Some Hypotheses (Weak Pass)",
+            3: "Clear ICP & Initial Channel (Target)",
+            4: "Repeatable Motion Emerging",
+            5: "Strong Distribution Advantage"
+        }
+    else:
+        print(f"   -> Using Seed GTM Logic (Stage: {stage_raw})")
+        template_to_use = SCORING_GTM_SEED_PROMPT
+        rubric_map = {
+            0: "No GTM Thinking (Disqualified)",
+            1: "Generic / Unrealistic",
+            2: "Some Hypotheses (Fail at Seed)",
+            3: "Clear ICP & Initial Channel (Weak)",
+            4: "Repeatable Motion Emerging (Target)",
+            5: "Strong Distribution Advantage"
+        }
+
+    # 4. Define Prompt Object
+    prompt = PromptTemplate(
+        template=template_to_use,
+        input_variables=[
+            "current_date",
+            "gtm_data", 
+            "economics_report",
+            "contradiction_report", 
+            "risk_report"
+        ]
+    )
+    today_str = datetime.now().strftime("%Y-%m-%d")
+
+    # 5. Execution Chain
+    chain = prompt | llm_flash | JsonOutputParser()
+    
+    try:
+        # 6. Invoke
+        result_dict = chain.invoke({
+            "current_date": today_str,
+            "gtm_data": json.dumps(gtm_data, indent=2),
+            "economics_report": json.dumps(economics_report, indent=2),
+            "contradiction_report": str(contradiction_report),
+            "risk_report": str(risk_report)
+        })
+
+        # 7. Enrich with Rubric Definition
+        # Clean the score string (e.g., "3/5" -> 3)
+        score_str = str(result_dict.get('score', "0")).split("/")[0]
+        # Handle cases where score might be "X" or non-numeric
+        if score_str.isdigit():
+            score_num = int(score_str)
+        else:
+            score_num = 0
+        
+        # Add human-readable context
+        result_dict["rubric_rating"] = rubric_map.get(score_num, "Unknown Status")
+        result_dict["score_numeric"] = score_num 
+        result_dict["stage_evaluated"] = "Pre-Seed" if "pre" in stage_raw else "Seed"
+
+        return result_dict
+
+    except Exception as e:
+        return {
+            "error": "GTM Scoring Failed", 
+            "details": str(e),
+            "score": "0/5",
+            "score_numeric": 0,
+            "rubric_rating": "Error"
+        }       
+
+
+def business_scoring_agent(data_package: dict) -> dict:
+    '''
+    Synthesizes Business Model reports (Math, Risks, Contradictions) to assign a final economic score.
+    Returns: JSON Dictionary
+    '''
+    
+    print("🚀 Running Business Model Scoring Agent (JSON Output)...")
+
+    # 1. Setup LLM
+    llm = ChatGoogleGenerativeAI(
+        model="gemini-2.5-flash", 
+        temperature=0,
+        google_api_key=os.environ.get("GEMINI_API_KEY")
+    )
+
+    # 2. Extract Data & Determine Stage
+    business_data = data_package.get("business_data", {})
+    # Fallback stage detection
+    stage_raw = business_data.get("context", {}).get("stage", "Pre-Seed").lower()
+
+    # 3. Select Prompt Template
+    if "pre" in stage_raw:
+        print(f"   -> Using Pre-Seed Biz Logic (Stage: {stage_raw})")
+        template_to_use = SCORING_BIZ_PRE_SEED_PROMPT
+        rubric_map = {
+            0: "No Monetization Logic (Charity)",
+            1: "Unclear or Unrealistic Pricing",
+            2: "Monetization Plausible but Unproven",
+            3: "Clear Pricing & Margin Logic",
+            4: "Early Validation of Unit Economics",
+            5: "Strong Unit Economics (Unicorn)"
+        }
+    else:
+        print(f"   -> Using Seed Biz Logic (Stage: {stage_raw})")
+        template_to_use = SCORING_BIZ_SEED_PROMPT
+        rubric_map = {
+            0: "No Monetization Logic (Disqualified)",
+            1: "Unclear or Unrealistic",
+            2: "Monetization Plausible but Unproven",
+            3: "Clear Pricing & Margin Logic",
+            4: "Early Validation of Unit Economics",
+            5: "Strong Unit Economics (Scalable)"
+        }
+
+    # 4. Define Prompt Object
+    prompt = PromptTemplate(
+        template=template_to_use,
+        input_variables=[
+            "current_date",
+            "business_data", 
+            "calculator_report",
+            "contradiction_report", 
+            "risk_report"
+        ]
+    )
+    today_str = datetime.now().strftime("%Y-%m-%d")
+
+    # 5. Execution Chain
+    chain = prompt | llm | JsonOutputParser()
+    
+    try:
+        # 6. Invoke
+        result_dict = chain.invoke({
+            "current_date": today_str,
+            "business_data": json.dumps(business_data, indent=2),
+            "calculator_report": json.dumps(data_package.get("calculator_report", {}), indent=2),
+            "contradiction_report": str(data_package.get("contradiction_report", "None")),
+            "risk_report": str(data_package.get("risk_report", "None"))
+        })
+
+        # 7. Enrich with Rubric Definition
+        # Clean the score string (e.g., "3/5" -> 3)
+        score_str = str(result_dict.get('score', "0")).split("/")[0]
+        # Handle non-numeric gracefully
+        score_num = int(score_str) if score_str.isdigit() else 0
+        
+        # Add human-readable context
+        result_dict["rubric_rating"] = rubric_map.get(score_num, "Unknown Status")
+        result_dict["score_numeric"] = score_num 
+        result_dict["stage_evaluated"] = "Pre-Seed" if "pre" in stage_raw else "Seed"
+
+        return result_dict
+
+    except Exception as e:
+        return {
+            "error": "Business Scoring Failed", 
+            "details": str(e),
+            "score": "0/5",
+            "score_numeric": 0,
+            "rubric_rating": "Error"
+        }
+
+def vision_scoring_agent(data_package: dict) -> dict: 
+    """ Synthesizes vision data, market analysis, and risks to assign a final score. 
+    Returns: JSON Dictionary with Score and Rubric Rating. """
+
+    print("⚖️  Running Vision Scoring Agent (JSON Output)...")
+
+    # 1. Setup LLM
+    llm_flash = ChatGoogleGenerativeAI(
+        model="gemini-2.5-flash", # Use 2.5 if available
+        temperature=0,
+        google_api_key=os.environ.get("GEMINI_API_KEY")
+    )
+
+    # 2. Define Prompt
+    prompt = PromptTemplate(
+        template=VISION_SCORING_AGENT_PROMPT,
+        input_variables=[
+            "current_date",
+            "vision_data", 
+            "market_analysis", 
+            "contradiction_report", 
+            "risk_report"
+        ]
+    )
+    today_str = datetime.now().strftime("%Y-%m-%d")
+
+    # 3. Execution Chain
+    chain = prompt | llm_flash | JsonOutputParser()
+
+    try:
+        # 4. Invoke
+        result_dict = chain.invoke({
+            "current_date": today_str,
+            "vision_data": json.dumps(data_package.get("vision_data", {}), indent=2),
+            "market_analysis": json.dumps(data_package.get("market_analysis", {}), indent=2),
+            "contradiction_report": str(data_package.get("contradiction_report", "None")),
+            "risk_report": str(data_package.get("risk_report", "None"))
+        })
+
+        # 5. Enrich with Rubric Definition
+        # Extract numeric score safely (e.g., from "3/5" -> 3)
+        score_val = result_dict.get('score', "0")
+        if isinstance(score_val, str):
+            score_str = score_val.split("/")[0]
+            score_num = int(score_str) if score_str.isdigit() else 0
+        else:
+            score_num = int(score_val)
+
+        rubric_map = {
+            0: "No Long-Term Vision",
+            1: "Small / Lifestyle Business",
+            2: "Limited Scope (Feature)",
+            3: "Venture-Scale Ambition (Pre-Seed Bar)",
+            4: "Compelling Category Vision (Seed Bar)",
+            5: "Future Shaper (Unicorn Path)"
+        }
+        
+        # Add the human-readable rating to the JSON
+        result_dict["rubric_rating"] = rubric_map.get(score_num, "Unknown")
+        result_dict["score_numeric"] = score_num # Clean integer for math aggregation
+
+        return result_dict
+
+    except Exception as e:
+        print(f"❌ Vision Scoring Failed: {e}")
+        return {"error": "Vision Scoring Failed", "details": str(e), "score": "0/5", "score_numeric": 0}
+
+def operations_scoring_agent(data_package: dict) -> dict: 
+    """ Synthesizes operations data, benchmarks, and risks to assign a final score. 
+    Returns: JSON Dictionary with Score and Rubric Rating.
+    """
+
+    print("⚖️  Running Operations Scoring Agent (JSON Output)...")
+
+    # 1. Setup LLM
+    llm_flash = ChatGoogleGenerativeAI(
+        model="gemini-2.5-flash", 
+        temperature=0,
+        google_api_key=os.environ.get("GEMINI_API_KEY")
+    )
+
+    # 2. Define Prompt
+    prompt = PromptTemplate(
+        template=OPERATIONS_SCORING_AGENT_PROMPT,
+        input_variables=[
+            "current_date",
+            "operations_data", 
+            "benchmarks", 
+            "contradiction_report", 
+            "risk_report"
+        ]
+    )
+    today_str = datetime.now().strftime("%Y-%m-%d")
+
+    # 3. Execution Chain
+    chain = prompt | llm_flash | JsonOutputParser()
+
+    try:
+        # 4. Invoke
+        result_dict = chain.invoke({
+            "current_date": today_str,
+            "operations_data": json.dumps(data_package.get("operations_data", {}), indent=2),
+            "benchmarks": str(data_package.get("benchmarks", "None")),
+            "contradiction_report": str(data_package.get("contradiction_report", "None")),
+            "risk_report": str(data_package.get("risk_report", "None"))
+        })
+
+        # 5. Enrich with Rubric Definition
+        score_val = result_dict.get('score', "0")
+        if isinstance(score_val, str):
+            score_str = score_val.split("/")[0]
+            score_num = int(score_str) if score_str.isdigit() else 0
+        else:
+            score_num = int(score_val)
+
+        rubric_map = {
+            0: "Messy Cap Table / Unclear Funds",
+            1: "Misaligned Expectations",
+            2: "Some Gaps (Fixable)",
+            3: "Clean Structure (Realistic)",
+            4: "Strong Fundraising Discipline",
+            5: "Institutional-Grade Readiness"
+        }
+        
+        result_dict["rubric_rating"] = rubric_map.get(score_num, "Unknown")
+        result_dict["score_numeric"] = score_num
+
+        return result_dict
+
+    except Exception as e:
+        print(f"❌ Operations Scoring Failed: {e}")
+        return {"error": "Operations Scoring Failed", "details": str(e), "score": "0/5", "score_numeric": 0}
 # --- MAIN EXECUTION PIPELINE ---
 if __name__ == "__main__":
     
@@ -995,98 +1949,499 @@ if __name__ == "__main__":
     # =========================================================
     # PHASE 4: MARKET EVALUATION
     # =========================================================
-    print("\n" + "="*50)
-    print("🧩 PHASE 4: MARKET EVALUATION AGENT")
-    print("="*50)
+    # print("\n" + "="*50)
+    # print("🧩 PHASE 4: MARKET EVALUATION AGENT")
+    # print("="*50)
 
-    print("✂️  Extracting Market-Specific Context...")
-    # This creates a smaller, cleaner JSON just for the Market Agent
-    market_scope_data = extract_market_data(raw_startup_data)
-    # print(market_scope_data)
-    print("\n🚀 Calling TAM Tool...")
+    # print("✂️  Extracting Market-Specific Context...")
+    # # This creates a smaller, cleaner JSON just for the Market Agent
+    # market_scope_data = extract_market_data(raw_startup_data)
+    # # print(market_scope_data)
+    # print("\n🚀 Calling TAM Tool...")
 
-    beachhead_text = market_scope_data["entry_point"]["beachhead_definition"]
-    hq_location = market_scope_data["entry_point"]["location"]
+    # beachhead_text = market_scope_data["entry_point"]["beachhead_definition"]
+    # hq_location = market_scope_data["entry_point"]["location"]
 
-    target_location = hq_location
-    if "North America" in beachhead_text:
-        target_location = "North America"
+    # target_location = hq_location
+    # if "North America" in beachhead_text:
+    #     target_location = "North America"
 
-    tam_result = tam_sam_verifier_tool(
-        beachhead=beachhead_text,
-        location=target_location, 
-        claimed_size=market_scope_data["entry_point"]["som_size_claim"]
-    )
+    # tam_result = tam_sam_verifier_tool(
+    #     beachhead=beachhead_text,
+    #     location=target_location, 
+    #     claimed_size=market_scope_data["entry_point"]["som_size_claim"]
+    # )
 
-    print(json.dumps(tam_result, indent=2))
-
-
-
-    category = market_scope_data["scalability"]["future_category"]
-    location = market_scope_data["entry_point"]["location"]
-
-    # # 3. Conditional Execution
-    if category and location:
-        print(f"\n📡 Running Regulation & Trend Radar...")
-        radar_result = regulation_trend_radar_tool(
-            category=category,
-            location=location
-        )
-        print(json.dumps(radar_result, indent=2))
-    else:
-        print("\n Skipping Regulation Radar: Missing 'Category' or 'Location' in data.")
-
-    # A. Contradiction Check
-    print("\n🤖 Running Market Contradiction Check...")
-    try:
-        market_contradiction_result = contradiction_check(market_scope_data, agent_prompt=CONTRADICTION_MARKET_PROMPT_TEMPLATE)
-        print(market_contradiction_result)
-        print("   -> Done.")
-    except Exception as e:
-        print(f"❌ Execution Error (Contradiction): {e}")
-        market_contradiction_result = "Error."
+    # print(json.dumps(tam_result, indent=2))
 
 
-    product_context = market_scope_data["scalability"]["future_category"]
-    competitor_context = market_scope_data["risks"]["current_competitors"] 
 
-    # The Magic Line: Combine them to give the LLM context
-    tech_inference = f"Category: {product_context}. Methodology based on: {competitor_context}"
+    # category = market_scope_data["scalability"]["future_category"]
+    # location = market_scope_data["entry_point"]["location"]
 
-    print(f"🕵️  Calling Dependency Detective with context: {tech_inference}...")
+    # # # 3. Conditional Execution
+    # if category and location:
+    #     print(f"\n📡 Running Regulation & Trend Radar...")
+    #     radar_result = regulation_trend_radar_tool(
+    #         category=category,
+    #         location=location
+    #     )
+    #     print(json.dumps(radar_result, indent=2))
+    # else:
+    #     print("\n Skipping Regulation Radar: Missing 'Category' or 'Location' in data.")
 
-    # 3. Call the Function
-    result = local_dependency_detective(
-        tech_stack=tech_inference,  
-        acquisition_channel=market_scope_data["risks"]["acquisition_channel"],
-        product_desc=product_context
-    )
+    # # A. Contradiction Check
+    # print("\n🤖 Running Market Contradiction Check...")
+    # try:
+    #     market_contradiction_result = contradiction_check(market_scope_data, agent_prompt=CONTRADICTION_MARKET_PROMPT_TEMPLATE)
+    #     print(market_contradiction_result)
+    #     print("   -> Done.")
+    # except Exception as e:
+    #     print(f"❌ Execution Error (Contradiction): {e}")
+    #     market_contradiction_result = "Error."
 
-    print(json.dumps(result, indent=2))
+
+    # product_context = market_scope_data["scalability"]["future_category"]
+    # competitor_context = market_scope_data["risks"]["current_competitors"] 
+
+    # # The Magic Line: Combine them to give the LLM context
+    # tech_inference = f"Category: {product_context}. Methodology based on: {competitor_context}"
+
+    # print(f"🕵️  Calling Dependency Detective with context: {tech_inference}...")
+
+    # # 3. Call the Function
+    # result = local_dependency_detective(
+    #     tech_stack=tech_inference,  
+    #     acquisition_channel=market_scope_data["risks"]["acquisition_channel"],
+    #     product_desc=product_context
+    # )
+
+    # print(json.dumps(result, indent=2))
 
 
-    market_risk_agent_result = market_risk_agent(
-        market_inputs=market_scope_data,
-        tam_result=tam_result,
-        radar_result=radar_result,  
-        dep_result=result
-    )
-    print("\n" + "="*40)
-    print("MARKET RISK AGENT RESULT:")
-    print("="*40)
-    print(market_risk_agent_result)
+    # market_risk_agent_result = market_risk_agent(
+    #     market_inputs=market_scope_data,
+    #     tam_result=tam_result,
+    #     radar_result=radar_result,  
+    #     dep_result=result
+    # )
+    # print("\n" + "="*40)
+    # print("MARKET RISK AGENT RESULT:")
+    # print("="*40)
+    # print(market_risk_agent_result)
 
-    market_data_package = {
-    "internal_data": extract_market_data(market_scope_data), # The extracted JSON
-    "contradiction_report": market_contradiction_result, # Or output from Contradiction Agent
-    "tam_report": tam_result,       # Output from TAM Tool
-    "radar_report": radar_result,   # Output from Radar Tool
-    "dependency_report": result # Output from Dependency Detective
-    }
+    # market_data_package = {
+    # "internal_data": extract_market_data(market_scope_data), # The extracted JSON
+    # "contradiction_report": market_contradiction_result, # Or output from Contradiction Agent
+    # "tam_report": tam_result,       # Output from TAM Tool
+    # "radar_report": radar_result,   # Output from Radar Tool
+    # "dependency_report": result # Output from Dependency Detective
+    # }
 
-    # Run the Agent
-    final_report = market_scoring_agent(market_data_package)
-    print(final_report)
+    # # Run the Agent
+    # final_report = market_scoring_agent(market_data_package)
+    # print(final_report)
+
+    # =========================================================
+    # PHASE 5: TRACTION EVALUATION
+    # =========================================================
+    # print("\n" + "="*50)
+    # print("🧩 PHASE 5: TRACTION EVALUATION AGENT")
+    # print("="*50)
+
+    # # 1. Extract Correct Data (Fix: Use extract_traction_data)
+    # # This function returns the clean "context", "metrics", etc.
+    # traction_scope_data = extract_traction_data(input_data) 
+    
+    # # 2. Identify Stage
+    # # We grab it safely from the context we just extracted
+    # stage = traction_scope_data.get("context", {}).get("stage", "Pre-Seed")
+    # print(f"📊 Detected Stage: {stage}")
+
+    # # 3. Select Prompt
+    # print("\n🤖 Running Traction Contradiction Check...")
+    
+    # # Simple logic to switch prompts based on stage string
+    # if "pre" in stage.lower():
+    #     contradiction_prompt_template = CONTRADICTION_PRE_SEED_TRACTION_AGENT_PROMPT
+    # else:
+    #     contradiction_prompt_template = CONTRADICTION_SEED_TRACTION_AGENT_PROMPT
+
+    # # 4. Run Check
+    # try:
+    #     # Now passing traction_scope_data directly works because the prompt accepts {json_data}
+    #     traction_contradiction_result = contradiction_check(
+    #         data=traction_scope_data, 
+    #         agent_prompt=contradiction_prompt_template
+    #     )
+    #     print(traction_contradiction_result)
+    #     print("   -> Done.")
+        
+    # except Exception as e:
+    #     print(f"❌ Execution Error (Contradiction): {e}")
+    #     traction_contradiction_result = "Error during check."
+    
+
+    # print("\n🤖 Running Traction Risk Check...")
+    # if "pre" in stage.lower():
+    #     risk_prompt_template = VALUATION_RISK_TRACTION_PRE_SEED_PROMPT
+    # else:
+    #     risk_prompt_template = VALUATION_RISK_TRACTION_SEED_PROMPT
+
+
+    # # 3. Call the Agent
+    # traction_risk_result = traction_risk_agent(
+    #     traction_data=traction_scope_data, 
+    #     risk_prompt_template=risk_prompt_template
+    # )
+
+    # print(traction_risk_result)
+    # # --------------------------------------------------
+    # # C. Final Scoring (The "Grader")
+    # # --------------------------------------------------
+    # print("\n🚀 Running Final Traction Scoring...")
+
+    # # Prepare the package for the scoring agent
+    # scoring_package = {
+    #     "traction_data": traction_scope_data,
+    #     "contradiction_report": traction_contradiction_result,
+    #     "risk_report": traction_risk_result
+    # }
+
+    # try:
+    #     # Run the scoring agent
+    #     traction_score_output = traction_scoring_agent(scoring_package)
+
+    #     # Print Final Result
+    #     print("\n" + "-"*30)
+    #     print(f"🏆 TRACTION SCORE: {traction_score_output.get('score', 'N/A')}")
+    #     print(f"🏷️  RATING: {traction_score_output.get('rubric_rating', 'N/A')}")
+    #     print("-"*30)
+    #     print(json.dumps(traction_score_output, indent=2))
+        
+    #     # Optional: Store for final report aggregation if you have a results dict
+    #     # final_scores["traction"] = traction_score_output
+
+    # except Exception as e:
+    #      print(f"❌ Execution Error (Scoring): {e}")
+
+    # =========================================================
+    # PHASE 6: GO TO MARKET EVALUATION
+    # =========================================================
+    # print("\n" + "="*50)
+    # print("🧩 PHASE 6: GTM & ECONOMICS AGENT")
+    # print("="*50)
+
+    # # 1. Detect Stage (Crucial for choosing the right path)
+    # # We grab the raw stage string safely
+    # stage = raw_startup_data.get("startup_evaluation", {}).get("company_snapshot", {}).get("current_stage", "Pre-Seed").lower()
+    # print(f"📊 Detected Stage for GTM: {stage.title()}")
+    
+    # # 2. The Fork: Choose the Right Extractor & Prompts
+    # if "pre" in stage:
+    #     print("   -> 🛠️  Using Pre-Seed Extractor (Focus: Hypothesis & Hustle)")
+    #     gtm_data = extract_gtm_pre_seed(raw_startup_data)
+        
+    # else:
+    #     print("   -> 🛠️  Using Seed Extractor (Focus: Metrics & Scaling)")
+    #     gtm_data = extract_gtm_seed(raw_startup_data)
+    # print(gtm_data)
+   
+
+    # # 3. Select Prompt
+    # print("\n🤖 Running GTM Contradiction Check...")
+    
+    # # Simple logic to switch prompts based on stage string
+    # if "pre" in stage.lower():
+    #     contradiction_prompt_template = CONTRADICTION_PRE_SEED_GTM_AGENT_PROMPT
+    # else:
+    #     contradiction_prompt_template = CONTRADICTION_SEED_GTM_AGENT_PROMPT
+
+    # # 4. Run Check
+    # try:
+    #     # Now passing gtm_data directly works because the prompt accepts {json_data}
+    #     gtm_contradiction_result = contradiction_check(
+    #         data=gtm_data, 
+    #         agent_prompt=contradiction_prompt_template
+    #     )
+    #     print(gtm_contradiction_result)
+    #     print("   -> Done.")
+        
+    # except Exception as e:
+    #     print(f"❌ Execution Error (Contradiction): {e}")
+    #     gtm_contradiction_result = "Error during check."
+        
+
+    # print("\n🤖 Running Gtm Risk Check...")
+    # if "pre" in stage.lower():
+    #     risk_prompt_template = VALUATION_RISK_GTM_PRE_SEED_PROMPT
+    # else:
+    #     risk_prompt_template = VALUATION_RISK_GTM_SEED_PROMPT
+
+
+    # # 3. Call the Agent
+    # gtm_risk_result = gtm_risk_agent(
+    #     gtm_data=gtm_data, 
+    #     risk_prompt_template=risk_prompt_template
+    # )
+
+    # print(gtm_risk_result)
+    # print("\n🤖 Running Gtm Calculator Check...")
+    # calculator = calculate_economics_with_judgment(gtm_data)
+    # print(json.dumps(calculator, indent=2))
+
+    # print("\n🚀 Running Final GTM Scoring...")
+
+    # try:
+    #     gtm_score_output = gtm_scoring_agent(
+    #         gtm_data=gtm_data,
+    #         economics_report=calculator,        # The Math & Verdict
+    #         contradiction_report=gtm_contradiction_result, # The Logic Check
+    #         risk_report=gtm_risk_result         # The Strategy Holes
+    #     )
+
+    #     # Print Final Result nicely
+    #     print("\n" + "-"*30)
+    #     print(f"🏆 GTM SCORE: {gtm_score_output.get('score', 'N/A')}")
+    #     print(f"🏷️  RATING: {gtm_score_output.get('rubric_rating', 'Unknown')}")
+    #     print("-"*30)
+    #     print(json.dumps(gtm_score_output, indent=2))
+
+    # except Exception as e:
+    #     print(f"❌ Error (GTM Scoring): {e}")
+
+    # =========================================================
+    # PHASE 7: BUSINESS MODEL EVALUATION
+    # =========================================================
+    # print("\n" + "="*50)
+    # print("🧩 PHASE 7: BUSINESS MODEL EVALUATION")
+    # print("="*50)
+
+    # # 1. Detect Stage
+    # stage = raw_startup_data.get("startup_evaluation", {}).get("company_snapshot", {}).get("current_stage", "Pre-Seed").lower()
+    # print(f"📊 Detected Stage for Business Model: {stage.title()}")
+    
+    # # 2. Extract Data (The Inputs)
+    # if "pre" in stage:
+    #     print("   -> 🛠️  Using Pre-Seed Extractor (Focus: Hypothesis & Hustle)")
+    #     business_data = extract_business_pre_seed(raw_startup_data)
+    #     contradiction_prompt = CONTRADICTION_PRE_SEED_BIZ_MODEL_PROMPT
+    #     risk_prompt = RISK_BIZ_MODEL_PRE_SEED_PROMPT
+    # else:
+    #     print("   -> 🛠️  Using Seed Extractor (Focus: Metrics & Scaling)")
+    #     business_data = extract_business_seed(raw_startup_data)
+    #     contradiction_prompt = CONTRADICTION_SEED_BIZ_MODEL_PROMPT
+    #     risk_prompt = RISK_BIZ_MODEL_SEED_PROMPT
+
+    # # 3. Run Calculator (The Math)
+    # print("\n🧮 Running Business Profitability Check...")
+    # business_calculator = evaluate_business_model_with_context(business_data)
+    # print(json.dumps(business_calculator, indent=2)) 
+
+    # # 4. Run Contradiction Check (The Logic)
+    # print("\n🤖 Running Business Model Contradiction Check...")
+    # try:
+    #     business_contradiction_result = contradiction_check(
+    #         data=business_data, 
+    #         agent_prompt=contradiction_prompt
+    #     )
+    #     print(business_contradiction_result)
+    # except Exception as e:
+    #     print(f"❌ Execution Error (Contradiction): {e}")
+    #     business_contradiction_result = "Analysis Failed"
+
+    # # 5. Run Risk Check (The Strategy)
+    # print("\n🤖 Running Business Model Risk Check...")
+    # try:
+    #     business_risk_result = business_risk_agent(
+    #         business_data=business_data, 
+    #         risk_prompt_template=risk_prompt
+    #     )
+    #     print(business_risk_result)
+    # except Exception as e:
+    #     print(f"❌ Execution Error (Risk): {e}")
+    #     business_risk_result = "Analysis Failed"
+
+    # # 6. Run Final Scoring (The Verdict)
+    # print("\n🚀 Running Final Business Model Scoring...")
+    
+    # scoring_package = {
+    #     "business_data": business_data,
+    #     "calculator_report": business_calculator,
+    #     "contradiction_report": business_contradiction_result,
+    #     "risk_report": business_risk_result
+    # }
+
+    # try:
+    #     business_score_output = business_scoring_agent(scoring_package)
+
+    #     print("\n" + "-"*30)
+    #     print(f"🏆 BUSINESS SCORE: {business_score_output.get('score', 'N/A')}")
+    #     print(f"🏷️  RATING: {business_score_output.get('rubric_rating', 'Unknown')}")
+    #     print("-" * 30)
+    #     print(json.dumps(business_score_output, indent=2))
+
+    # except Exception as e:
+    #     print(f"❌ Error (Business Scoring): {e}")
+    # =========================================================
+    # PHASE 8: VISON MODEL EVALUATION
+    # =========================================================
+    # print("\n" + "="*50)
+    # print("🧩 PHASE 8: VISION MODEL EVALUATION")
+    # print("="*50)
+
+    # # 1. Detect Stage
+    # stage = raw_startup_data.get("startup_evaluation", {}).get("company_snapshot", {}).get("current_stage", "Pre-Seed").lower()
+    # print(f"📊 Detected Stage for Vision Model: {stage.title()}")
+
+    # vision_data = extract_vision_data(raw_startup_data)
+    # print(vision_data)
+
+    # print("\n🔍 Running Market Future Analysis (Serper + DuckDuckGo + Gemini)...")
+    
+    # try:
+    #     market_analysis_result = analyze_category_future(vision_data)
+        
+    #     # Print the result nicely
+    #     print("\n" + "-"*30)
+    #     print(f"🔮 MARKET VERDICT: {market_analysis_result.get('category_verdict', 'Unknown')}")
+    #     print(f"📈 SCALABILITY: {market_analysis_result.get('scalability_outlook', 'Unknown')}")
+    #     print("-" * 30)
+    #     print(json.dumps(market_analysis_result, indent=2))
+        
+    # except Exception as e:
+    #     print(f"❌ Error during Market Analysis: {e}")
+    #     market_analysis_result = {}
+    # # A. Contradiction Check
+    # print("\n🤖 Running Vision Contradiction Check...")
+    # try:
+    #     vision_contradiction_result = contradiction_check(vision_data, agent_prompt=CONTRADICTION_VISION_PROMPT_TEMPLATE)
+    #     print(vision_contradiction_result)
+    #     print("   -> Done.")
+    # except Exception as e:
+    #     print(f"❌ Execution Error (Contradiction): {e}")
+    #     vision_contradiction_result = "Error."
+
+    # # 4. Run Vision Risk Check (The 8 Criteria)
+    # print("\n🤖 Running Detailed Vision Risk Check...")
+    # stage = vision_data.get("context", {}).get("stage", "Pre-Seed").lower()
+    
+    # # 2. Select Template
+    # if "pre" in stage:
+    #     print(f"📉 Running Pre-Seed Vision Risk Analysis...")
+    #     template = VALUATION_RISK_VISION_PRE_SEED_PROMPT
+    # else:
+    #     print(f"📉 Running Seed Vision Risk Analysis...")
+    #     template = VALUATION_RISK_VISION_SEED_PROMPT
+
+    # vision_risk_result = vision_risk_agent(
+    #     vision_data=vision_data, 
+    #     market_analysis=market_analysis_result,
+    #     template = template
+    # )
+    
+    # print("\n" + "-"*30)
+    # print("🚩 VISION RISKS DETECTED")
+    # print("-" * 30)
+    # print(vision_risk_result)
+
+    # # =========================================================
+    # # 5. FINAL VISION SCORING (The Judge)
+    # # =========================================================
+    # print("\n🚀 Running Final Vision Scoring Agent...")
+
+    # # 1. Pack the Evidence
+    # vision_package = {
+    #     "vision_data": vision_data,
+    #     "market_analysis": market_analysis_result,      # The Search Data (Score 9 or 4)
+    #     "contradiction_report": vision_contradiction_result, # The Logic Gaps
+    #     "risk_report": vision_risk_result               # The 8-Point Risk Check
+    # }
+
+    # try:
+    #     # 2. Call the Agent
+    #     final_vision_score = vision_scoring_agent(vision_package)
+
+    #     # 3. Print the Verdict
+    #     print("\n" + "="*40)
+    #     print(f"🏆 FINAL VISION SCORE: {final_vision_score.get('score', 'N/A')}")
+    #     print(f"🏷️  RATING: {final_vision_score.get('rubric_rating', 'Unknown')}")
+    #     print("=" * 40)
+        
+    #     # Pretty print the full JSON explanation
+    #     print(json.dumps(final_vision_score, indent=2))
+        
+    #     # Optional: Print specifically the "Green Flags" vs "Red Flags" for quick reading
+    #     if "red_flags" in final_vision_score:
+    #         print("\n🚩 Critical Red Flags:")
+    #         for flag in final_vision_score["red_flags"]:
+    #             print(f"   - {flag}")
+
+    # except Exception as e:
+    #     print(f"❌ Final Scoring Failed: {e}")
+    #     final_vision_score = {"score": "0/5", "error": str(e)}
+
+    # print("\n✅ Phase 8 Complete.")
+
+    # =========================================================
+    # PHASE 9: OPERATIONS MODEL EVALUATION
+    # =========================================================
+    # print("\n" + "="*50)
+    # print("🧩 PHASE 9: OPERATIONS MODEL EVALUATION")
+    # print("="*50)
+    # operations_data = extract_operations_data(raw_startup_data)
+    # print(operations_data)
+    
+    #     # 1. Detect Stage
+    # stage = operations_data.get("context", {}).get("stage", "Pre-Seed").lower()
+    
+    # # 2. Select Template
+    # if "pre" in stage:
+    #     print(f"📉 Running Pre-Seed Operational Audit...")
+    #     template = VALUATION_RISK_OPS_PRE_SEED_PROMPT
+    # else:
+    #     print(f"📉 Running Seed Operational Audit...")
+    #     template = VALUATION_RISK_OPS_SEED_PROMPT
+    
+    # location = operations_data["context"].get("location", "Global")
+    # sector = operations_data["context"].get("sector", "Technology")
+    # benchmarks = get_funding_benchmarks(location = location, sector = sector, stage=stage)
+    # print("\n📊 Operational Benchmarks for Context:")
+    # print(benchmarks)
+    # ops_risk_result = operations_risk_agent(
+    #     operations_data=operations_data, 
+    #     benchmarks=benchmarks, 
+    #     template=template
+    # )
+    # print("\n" + "-"*30)
+    # print("🚩 OPERATIONAL RISKS DETECTED")
+    # print(ops_risk_result)
+
+    # operations_contradictions = contradiction_check(operations_data, agent_prompt=CONTRADICTION_OPERATIONS_PROMPT_TEMPLATE)
+
+    # print(operations_contradictions)
+
+    # # 5. Final Scoring (The Judge)
+    # print("\n🚀 Running Final Operations Scoring...")
+    
+    # ops_package = {
+    #     "operations_data": operations_data,
+    #     "benchmarks": benchmarks,
+    #     "contradiction_report": operations_contradictions,
+    #     "risk_report": ops_risk_result
+    # }
+
+    # try:
+    #     final_ops_score = operations_scoring_agent(ops_package)
+
+    #     print("\n" + "="*40)
+    #     print(f"🏆 FINAL OPERATIONS SCORE: {final_ops_score.get('score', 'N/A')}")
+    #     print(f"🏷️  RATING: {final_ops_score.get('rubric_rating', 'Unknown')}")
+    #     print("=" * 40)
+    #     print(json.dumps(final_ops_score, indent=2))
+
+    # except Exception as e:
+    #     print(f"❌ Final Ops Scoring Failed: {e}")
 
     
     # =========================================================

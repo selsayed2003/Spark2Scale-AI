@@ -95,7 +95,7 @@
       "user_count": 0,
       "active_users_monthly": 0,
       "partnerships_and_lois": [],
-      "early_revenue": "USD 0"
+      "early_revenue": "0"
     },
     "gtm_strategy": {
       "buyer_persona": "Any team member",
@@ -109,7 +109,7 @@
       "pricing_model": "Freemium",
       "average_price_per_customer": 0,
       "gross_margin": 0,
-      "monthly_burn": 0,
+      "monthly_burn": 100,
       "runway_months": 0
     },
     "vision_and_strategy": {
