@@ -1,301 +1,272 @@
 import os
+import io
+import json
+import re
+import numpy as np
+import matplotlib.pyplot as plt
+from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
-from reportlab.lib.pagesizes import LETTER
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak, KeepTogether
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image, PageBreak
 from reportlab.lib.units import inch
-from reportlab.graphics.shapes import Drawing, Rect, String, Line
-from reportlab.graphics.charts.spider import SpiderChart
-from reportlab.lib.enums import TA_JUSTIFY
+from reportlab.lib.enums import TA_CENTER
+from datetime import datetime
 
-# --- 1. BRAND PALETTE ---
-COLOR_PRIMARY = colors.HexColor("#576238")  # Olive Green
-COLOR_ACCENT = colors.HexColor("#ffd95d")   # Mustard Yellow
+# --- BRANDING ---
+COLOR_PRIMARY = colors.HexColor("#576238")  # Olive
+COLOR_ACCENT = colors.HexColor("#ffd95d")   # Mustard
 COLOR_BG = colors.HexColor("#F0EADC")       # Cream
-COLOR_TEXT = colors.HexColor("#2c3e50")     # Dark Grey
-COLOR_LIGHT_TEXT = colors.HexColor("#5f6368")
-COLOR_RISK = colors.HexColor("#c0392b")     # Professional Red
+COLOR_TEXT = colors.HexColor("#2c3e50")     # Dark Slate
 
-# --- 2. DATA HELPERS ---
-
-def clean_score(score_input):
-    """Converts '3.0/5' or '3' or None to a float."""
-    try:
-        if score_input is None: return 0.0
-        s = str(score_input)
-        if "/" in s: s = s.split("/")[0]
-        return float(s)
-    except:
-        return 0.0
-
-def get_agent_data(data):
-    """Extracts scores for the Radar Chart."""
-    mapping = {
-        "Team": "team_report",
-        "Problem": "problem_report",
-        "Market": "market_report",
-        "Traction": "traction_report",
-        "Business": "business_report",
-        "GTM": "gtm_report",
-        "Vision": "vision_report",
-        "Ops": "operations_report",
-        "Product": "product_report"
-    }
-    
-    labels = []
-    scores = []
-    
-    for label, key in mapping.items():
-        if key in data:
-            labels.append(label)
-            # Default to 0.1 instead of 0 for radar visibility if empty
-            val = clean_score(data[key].get("score"))
-            scores.append(val if val > 0 else 0.1)
-            
-    return labels, scores
-
-# --- 3. GRAPHICS GENERATORS ---
-
-def draw_radar_chart(labels, scores):
-    """Generates the Spider/Radar chart."""
-    if not scores: return Drawing(10, 10) # Fallback empty drawing
-    
-    width = 400
-    height = 250
-    d = Drawing(width, height)
-    
-    chart = SpiderChart()
-    chart.x = 50
-    chart.y = 20
-    chart.width = 300
-    chart.height = 200
-    chart.data = [scores] 
-    chart.labels = labels
-    chart.strands.strokeColor = colors.white
-    chart.fillColor = colors.Color(0.34, 0.38, 0.22, 0.2) 
-    chart.strands.strokeWidth = 1
-    chart.spokes.strokeColor = colors.lightgrey
-    chart.strandLabels.fontName = "Helvetica"
-    chart.strandLabels.fontSize = 8
-    
-    # Marker styling (Outer line)
-    chart.strands[0].strokeColor = COLOR_PRIMARY
-    chart.strands[0].strokeWidth = 2
-    chart.strands[0].fillColor = colors.Color(0.34, 0.38, 0.22, 0.4)
-    
-    d.add(chart)
-    return d
-
-def draw_score_bar(score, max_score=5):
-    """Draws a horizontal progress bar."""
-    width = 150
-    height = 12
-    d = Drawing(width, height)
-    
-    # Background
-    d.add(Rect(0, 0, width, height, fillColor=colors.whitesmoke, strokeColor=None, rx=3, ry=3))
-    
-    # Fill
-    pct = min(max(score / max_score, 0), 1)
-    fill_width = width * pct
-    
-    # Color Logic
-    if score < 2: c = COLOR_RISK
-    elif score < 4: c = COLOR_ACCENT
-    else: c = COLOR_PRIMARY
-    
-    if fill_width > 0:
-        d.add(Rect(0, 0, fill_width, height, fillColor=c, strokeColor=None, rx=3, ry=3))
-    
-    # Text
-    d.add(String(width + 10, 2, f"{score}/5.0", fontName="Helvetica-Bold", fontSize=9, fillColor=COLOR_TEXT))
-    return d
-
-def draw_separator_line(width, color=colors.lightgrey):
-    """Draws a line wrapped in a Drawing object (Fixes wrapOn error)"""
-    d = Drawing(width, 5) # Height 5 to give a bit of buffer
-    d.add(Line(0, 0, width, 0, strokeColor=color, strokeWidth=1))
-    return d
-
-# --- 4. LAYOUT COMPONENTS ---
-
-def header_footer(canvas, doc):
+def draw_background(canvas, doc):
     canvas.saveState()
-    
-    # --- HEADER ---
-    canvas.setFillColor(COLOR_PRIMARY)
-    canvas.rect(0, LETTER[1] - 40, LETTER[0], 40, fill=1, stroke=0)
-    
-    canvas.setFillColor(colors.white)
-    canvas.setFont("Helvetica-Bold", 10)
-    canvas.drawString(0.5 * inch, LETTER[1] - 25, "SPARK2SCALE | AI EVALUATION")
-    
-    canvas.setFont("Helvetica", 9)
-    canvas.drawRightString(8.0 * inch, LETTER[1] - 25, "CONFIDENTIAL REPORT")
-    
-    # --- FOOTER ---
     canvas.setFillColor(COLOR_BG)
-    canvas.rect(0, 0, LETTER[0], 40, fill=1, stroke=0)
-    
-    canvas.setFillColor(COLOR_PRIMARY)
-    canvas.setFont("Helvetica", 8)
-    canvas.drawString(0.5 * inch, 0.25 * inch, "Methodology: YC Frameworks, Berkus Method, Live Market Search")
-    canvas.drawRightString(8.0 * inch, 0.25 * inch, f"Page {doc.page}")
-    
+    canvas.rect(0, 0, A4[0], A4[1], fill=True, stroke=False)
     canvas.restoreState()
 
-# --- 5. MAIN REPORT GENERATOR ---
-
-def generate_pdf_report(json_data: dict, filename: str):
-    doc = SimpleDocTemplate(
-        filename, 
-        pagesize=LETTER, 
-        topMargin=60, 
-        bottomMargin=50,
-        leftMargin=50,
-        rightMargin=50
-    )
+def find_value(data: dict, possible_keys: list, default="N/A"):
+    if not isinstance(data, dict): return default
+    # Flatten
+    search_data = data.copy()
+    if "Content" in data and isinstance(data["Content"], dict): search_data.update(data["Content"])
+    if "content" in data and isinstance(data["content"], dict): search_data.update(data["content"])
     
+    # Normalize
+    norm = {k.lower().replace("_", "").replace(" ", ""): v for k, v in search_data.items()}
+    
+    for key in possible_keys:
+        sk = key.lower().replace("_", "").replace(" ", "")
+        if sk in norm: return norm[sk]
+    return default
+
+def clean_score(val):
+    if isinstance(val, (int, float)): return val
+    if not val: return 0
+    try:
+        match = re.search(r"(\d+(\.\d+)?)", str(val))
+        return float(match.group(1)) if match else 0
+    except: return 0
+
+def create_radar_chart(scores):
+    labels = list(scores.keys())
+    stats = [clean_score(v) for v in scores.values()]
+    if not stats or sum(stats) == 0: return None
+    
+    angles = np.linspace(0, 2*np.pi, len(labels), endpoint=False).tolist()
+    stats += stats[:1]
+    angles += angles[:1]
+    
+    fig, ax = plt.subplots(figsize=(6, 6), subplot_kw=dict(polar=True))
+    fig.patch.set_facecolor('#F0EADC')
+    ax.set_facecolor('#F0EADC')
+    ax.plot(angles, stats, color='#576238', linewidth=2.5)
+    ax.fill(angles, stats, color='#ffd95d', alpha=0.5)
+    ax.set_ylim(0, 5)
+    ax.set_yticklabels(['1', '2', '3', '4', '5'], color="#576238", size=8)
+    ax.set_xticks(angles[:-1])
+    ax.set_xticklabels([l.upper() for l in labels], size=9, weight='bold', color="#576238")
+    ax.spines['polar'].set_visible(False)
+    ax.grid(color='#576238', alpha=0.2)
+    
+    buf = io.BytesIO()
+    plt.savefig(buf, format='png', bbox_inches='tight', facecolor='#F0EADC')
+    plt.close()
+    buf.seek(0)
+    return buf
+
+# =========================================================
+# 1. FOUNDER REPORT
+# =========================================================
+def generate_founder_report(report_data: dict, filename: str):
+    doc = SimpleDocTemplate(filename, pagesize=A4, rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40)
     styles = getSampleStyleSheet()
+    s_title = ParagraphStyle('T', parent=styles['Heading1'], fontSize=24, textColor=COLOR_PRIMARY, alignment=TA_CENTER)
+    s_head = ParagraphStyle('H', parent=styles['Heading2'], fontSize=18, textColor=COLOR_PRIMARY, spaceBefore=15)
+    s_body = ParagraphStyle('B', parent=styles['BodyText'], fontSize=11, textColor=COLOR_TEXT, leading=14)
     
-    # --- CUSTOM STYLES ---
-    style_hero = ParagraphStyle('Hero', parent=styles['Heading1'], fontName='Helvetica-Bold', fontSize=28, textColor=COLOR_PRIMARY, spaceAfter=5)
-    style_subhero = ParagraphStyle('SubHero', parent=styles['Normal'], fontName='Helvetica', fontSize=14, textColor=COLOR_LIGHT_TEXT, spaceAfter=20)
-    
-    style_h2 = ParagraphStyle('H2', parent=styles['Heading2'], fontName='Helvetica-Bold', fontSize=14, textColor=COLOR_PRIMARY, spaceBefore=15, spaceAfter=10)
-    
-    style_body = ParagraphStyle('Body', parent=styles['Normal'], fontName='Helvetica', fontSize=10, textColor=COLOR_TEXT, leading=14, spaceAfter=6, alignment=TA_JUSTIFY)
-    
-    style_flag = ParagraphStyle('Flag', parent=styles['Normal'], fontName='Helvetica', fontSize=9, textColor=COLOR_TEXT, leftIndent=15, bulletIndent=5, spaceAfter=2)
-
     story = []
+    final = find_value(report_data, ["final_report"], {})
+    founder = find_value(final, ["founder_output"], {})
     
-    # ==========================
-    # PAGE 1: EXECUTIVE SUMMARY
-    # ==========================
+    # Metadata
+    user_json = find_value(report_data.get("team_report", {}), ["user_json_data"], "{}")
+    if isinstance(user_json, str): user_json = json.loads(user_json)
+    company_name = find_value(find_value(user_json, ["company_snapshot"], {}), ["company_name"], "Startup")
+
+    story.append(Paragraph(f"EVALUATION REPORT: {company_name.upper()}", s_title))
+    story.append(Spacer(1, 20))
+
+    # --- SCORECARD ---
+    verdict = find_value(founder, ["verdict", "verdict_band"], "Pending")
+    score = clean_score(find_value(founder, ["weighted_score", "score"], 0))
     
-    # 1. Title Block
-    story.append(Spacer(1, 0.5*inch))
-    story.append(Paragraph("Startup Valuation & Readiness Report", style_hero))
-    story.append(Paragraph("Prepared by Spark2Scale AI Council", style_subhero))
-    story.append(Spacer(1, 0.2*inch))
-    
-    # 2. Methodology
-    method_text = """
-    <b>Evaluation Methodology:</b> This report aggregates intelligence from 9 specialized AI Agents. 
-    We utilize forensic data analysis, <b>Y Combinator</b> investment frameworks, the <b>Berkus Method</b> for early-stage valuation, 
-    and live <b>DuckDuckGo/Google Search</b> verification to provide a rigorous, objective assessment.
-    """
-    t_method = Table([[Paragraph(method_text, style_body)]], colWidths=[7*inch])
-    t_method.setStyle(TableStyle([
-        ('LINEBELOW', (0,0), (-1,-1), 2, COLOR_ACCENT),
-        ('PADDING', (0,0), (-1,-1), 10)
-    ]))
-    story.append(t_method)
-    story.append(Spacer(1, 0.3*inch))
-    
-    # 3. Radar Chart & Stats
-    labels, scores = get_agent_data(json_data)
-    radar = draw_radar_chart(labels, scores)
-    
-    # Stats logic
-    valid_scores = [s for s in scores if s > 0]
-    avg_score = sum(valid_scores) / len(valid_scores) if valid_scores else 0
-    top_strength = labels[scores.index(max(scores))] if scores else "N/A"
-    crit_gap = labels[scores.index(min(scores))] if scores else "N/A"
-    
-    stats_content = [
-        [Paragraph("<b>OVERALL READINESS</b>", style_body)],
-        [Paragraph(f"<font size=24 color={COLOR_PRIMARY}><b>{avg_score:.1f}/5.0</b></font>", style_body)],
-        [Spacer(1, 10)],
-        [Paragraph(f"<b>Top Strength:</b> {top_strength}", style_body)],
-        [Paragraph(f"<b>Critical Gap:</b> {crit_gap}", style_body)],
-        [Spacer(1, 10)],
-        [Paragraph("<i>Scores < 2.0 indicate structural risks requiring pivots.</i>", style_flag)]
+    t_data = [
+        ["VERDICT", "SCORE", "STAGE"],
+        [str(verdict).upper(), f"{score:.1f} / 45", "Pre-Seed"]
     ]
-    
-    t_dashboard = Table([
-        [radar, Table(stats_content)]
-    ], colWidths=[4*inch, 2.5*inch])
-    
-    t_dashboard.setStyle(TableStyle([
-        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-        ('ALIGN', (0,0), (0,0), 'CENTER')
+    t = Table(t_data, colWidths=[2.3*inch]*3)
+    t.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,-1), colors.white),
+        ('BOX', (0,0), (-1,-1), 1.5, COLOR_PRIMARY),
+        ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+        ('TEXTCOLOR', (0,0), (-1,-1), COLOR_PRIMARY),
+        ('FONTNAME', (0,0), (-1,-1), 'Helvetica-Bold'),
+        ('PADDING', (0,0), (-1,-1), 12)
     ]))
-    story.append(t_dashboard)
+    story.append(t)
+    story.append(Spacer(1, 20))
+
+    # --- EXEC SUMMARY ---
+    story.append(Paragraph("Executive Summary", s_head))
+    story.append(Paragraph(str(find_value(founder, ["executive_summary"], "")), s_body))
+    story.append(Spacer(1, 15))
+
+    # --- CHART ---
+    grid = find_value(founder, ["scorecard_grid"], {})
+    img = create_radar_chart(grid)
+    if img: story.append(Image(img, width=5*inch, height=5*inch))
     story.append(PageBreak())
 
-    # ==========================
-    # PAGES 2+: AGENT DEEP DIVES
-    # ==========================
+    # --- DETAILED ANALYSIS ---
+    story.append(Paragraph("Detailed Analysis", s_head))
+    dims = find_value(founder, ["dimension_analysis"], [])
+    if isinstance(dims, dict): dims = [{"dimension": k, **v} for k,v in dims.items()]
+
+    for d in dims:
+        name = find_value(d, ["dimension"], "Area").upper()
+        sc = clean_score(find_value(d, ["score"], 0))
+        just = find_value(d, ["justification", "reasoning"], "No data")
+        conf = find_value(d, ["confidence_level", "confidence"], "Medium")
+        imp = find_value(d, ["improvements", "improvement_path", "tactical_fix"], "")
+        
+        # Header
+        story.append(Paragraph(f"<b>{name}</b> ({sc}/5) | <font color='grey' size=9>Confidence: {conf}</font>", s_head))
+        # Justification
+        story.append(Paragraph(f"<b>Analysis:</b> {just}", s_body))
+        
+        # Red Flags
+        flags = find_value(d, ["red_flags", "risks"], [])
+        if flags:
+            story.append(Spacer(1, 3))
+            if isinstance(flags, list):
+                for f in flags: story.append(Paragraph(f"<font color='firebrick'>• {f}</font>", s_body))
+            else:
+                story.append(Paragraph(f"<font color='firebrick'>• {flags}</font>", s_body))
+
+        # Improvement
+        if imp:
+            story.append(Spacer(1, 5))
+            i_text = imp if isinstance(imp, str) else "; ".join(imp)
+            story.append(Paragraph(f"<b>🚀 Fix:</b> {i_text}", ParagraphStyle('fix', parent=s_body, textColor=colors.darkgreen)))
+            
+        story.append(Spacer(1, 10))
+        story.append(Paragraph("_"*50, ParagraphStyle('l', parent=s_body, textColor=COLOR_PRIMARY)))
+
+    story.append(PageBreak())
+
+    # --- PRIORITIES ---
+    story.append(Paragraph("Top 3 Execution Priorities", s_head))
+    # Broader search for keys
+    pris = find_value(founder, ["top_3_priorities", "priorities", "execution_priorities", "top_3_execution_priorities"], [])
     
-    agent_order = [
-        ("Team & Founders", "team_report", "The Execution Engine"),
-        ("Problem Definition", "problem_report", "Market Need Validation"),
-        ("Market & Strategy", "market_report", "Scalability & Moats"),
-        ("Traction & Velocity", "traction_report", "Proof of Demand"),
-        ("Business Model", "business_report", "Unit Economics & Viability"),
-        ("Go-To-Market", "gtm_report", "Acquisition Strategy"),
-        ("Product Status", "product_report", "Technical Readiness"),
-        ("Operations", "operations_report", "Fundraising Hygiene")
-    ]
+    if pris and isinstance(pris, list):
+        for i, p in enumerate(pris):
+            story.append(Paragraph(f"<b>{i+1}.</b> {p}", s_body))
+            story.append(Spacer(1, 8))
+    else:
+        story.append(Paragraph("No specific priorities listed.", s_body))
 
-    for friendly_name, key, tagline in agent_order:
-        if key not in json_data: continue
-        
-        report = json_data[key]
-        score = clean_score(report.get("score"))
-        
-        # --- CARD CONTAINER ---
-        elements = []
-        
-        # 1. Header Table
-        header_table_data = [
-            [Paragraph(f"<b>{friendly_name.upper()}</b>", style_h2), draw_score_bar(score)],
-            [Paragraph(f"<i>{tagline}</i>", style_flag), ""]
-        ]
-        t_header = Table(header_table_data, colWidths=[4.5*inch, 2*inch])
-        t_header.setStyle(TableStyle([
-            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-            ('ALIGN', (1,0), (1,1), 'RIGHT'),
-            ('BOTTOMPADDING', (0,0), (-1,-1), 0)
-        ]))
-        elements.append(t_header)
-        elements.append(Spacer(1, 5))
-        
-        # --- FIX: Use helper instead of raw Line ---
-        elements.append(draw_separator_line(6.5*inch, colors.lightgrey))
-        elements.append(Spacer(1, 10))
-        
-        # 2. Main Analysis
-        raw_text = report.get("explanation", "Data pending integration.")
-        # Friendly cleanup
-        friendly_text = raw_text.replace("Impossible", "Challenging").replace("Ghost Town", "Pre-Traction Phase").replace("Bankruptcy", "Financial Risk")
-        
-        elements.append(Paragraph(friendly_text, style_body))
-        elements.append(Spacer(1, 10))
-        
-        # 3. Key Findings (Grid)
-        reds = report.get("red_flags", []) or report.get("key_weaknesses", [])
-        greens = report.get("green_flags", []) or report.get("key_strengths", [])
-        
-        red_text = "<b>⚠️ ATTENTION NEEDED:</b><br/>" + "<br/>".join([f"• {r}" for r in reds[:3]]) if reds else "No critical flags."
-        green_text = "<b>✅ VALIDATED STRENGTHS:</b><br/>" + "<br/>".join([f"• {g}" for g in greens[:3]]) if greens else "Strengths developing..."
-        
-        t_flags = Table([
-            [Paragraph(red_text, style_body), Paragraph(green_text, style_body)]
-        ], colWidths=[3.25*inch, 3.25*inch])
-        
-        t_flags.setStyle(TableStyle([
-            ('VALIGN', (0,0), (-1,-1), 'TOP'),
-            ('BACKGROUND', (0,0), (0,0), colors.Color(0.9, 0.3, 0.2, 0.05)), 
-            ('BACKGROUND', (1,0), (1,0), colors.Color(0.34, 0.38, 0.22, 0.05)),
-            ('PADDING', (0,0), (-1,-1), 8),
-            ('GRID', (0,0), (-1,-1), 0.5, colors.white)
-        ]))
-        elements.append(t_flags)
-        elements.append(Spacer(1, 20))
-        
-        story.append(KeepTogether(elements))
+    doc.build(story, onFirstPage=draw_background, onLaterPages=draw_background)
 
-    doc.build(story, onFirstPage=header_footer, onLaterPages=header_footer)
+# =========================================================
+# 2. INVESTOR MEMO
+# =========================================================
+def generate_investor_report(report_data: dict, filename: str):
+    doc = SimpleDocTemplate(filename, pagesize=A4, rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40)
+    styles = getSampleStyleSheet()
+    s_title = ParagraphStyle('T', parent=styles['Heading1'], fontSize=24, textColor=COLOR_PRIMARY, alignment=TA_CENTER)
+    s_head = ParagraphStyle('H', parent=styles['Heading2'], fontSize=18, textColor=COLOR_PRIMARY, spaceBefore=15)
+    s_body = ParagraphStyle('B', parent=styles['BodyText'], fontSize=11, textColor=COLOR_TEXT)
+    
+    final = find_value(report_data, ["final_report"], {})
+    investor = find_value(final, ["investor_output"], {})
+    founder = find_value(final, ["founder_output"], {}) # Fallback source
+
+    story = []
+    story.append(Paragraph("INVESTMENT MEMO (CONFIDENTIAL)", s_title))
+    story.append(Spacer(1, 20))
+
+    # Summary
+    verdict = find_value(investor, ["verdict"], "Review")
+    score = clean_score(find_value(investor, ["weighted_score"], 0))
+    
+    t_data = [["VERDICT", "SCORE"], [str(verdict).upper(), f"{score:.1f} / 45"]]
+    t = Table(t_data, colWidths=[3.5*inch, 3.5*inch])
+    t.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), COLOR_PRIMARY),
+        ('TEXTCOLOR', (0,0), (-1,0), COLOR_ACCENT),
+        ('FONTNAME', (0,0), (-1,-1), 'Helvetica-Bold'),
+        ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+        ('PADDING', (0,0), (-1,-1), 15)
+    ]))
+    story.append(t)
+    story.append(Spacer(1, 20))
+
+    # Text Sections
+    story.append(Paragraph("Executive Summary", s_head))
+    story.append(Paragraph(find_value(investor, ["executive_summary"], ""), s_body))
+    
+    story.append(Paragraph("🚩 Deal Breakers", s_head))
+    flags = find_value(investor, ["deal_breakers"], [])
+    if isinstance(flags, list):
+        for f in flags: story.append(Paragraph(f"• {f}", ParagraphStyle('r', parent=s_body, textColor=colors.firebrick)))
+    else:
+        story.append(Paragraph(str(flags), s_body))
+
+    # --- SCORECARD GRID ---
+    story.append(Paragraph("Scorecard", s_head))
+    grid = find_value(investor, ["scorecard_grid"], {})
+    if grid:
+        t_rows = [["Category", "Score"]]
+        for k, v in grid.items():
+            t_rows.append([k.upper(), f"{clean_score(v)}/5"])
+        
+        t_s = Table(t_rows, colWidths=[4*inch, 2*inch])
+        t_s.setStyle(TableStyle([
+            ('GRID', (0,0), (-1,-1), 0.5, COLOR_PRIMARY),
+            ('BACKGROUND', (0,0), (0,-1), colors.white)
+        ]))
+        story.append(t_s)
+
+    # --- DIMENSION RATIONALES (The Fix) ---
+    story.append(Paragraph("Dimension Rationales", s_head))
+    
+    # 1. Try Investor Output first
+    rationales = find_value(investor, ["dimension_rationales"], [])
+    
+    # 2. Robust Fallback: Build from Founder Output if missing
+    if not rationales or rationales == "N/A":
+        # Extract from founder details
+        f_dims = find_value(founder, ["dimension_analysis"], [])
+        if isinstance(f_dims, dict): f_dims = list(f_dims.values())
+        
+        rationales = []
+        for d in f_dims:
+            dim_name = find_value(d, ["dimension"], "Unknown")
+            # Prefer "justification", fall back to "reasoning"
+            reason = find_value(d, ["justification", "reasoning"], "No data")
+            rationales.append({"dimension": dim_name, "rationale": reason})
+
+    # Render
+    if isinstance(rationales, list):
+        for r in rationales:
+            # Handle if r is dict or tuple
+            if isinstance(r, dict):
+                d = find_value(r, ["dimension"], "Dim")
+                t = find_value(r, ["rationale", "reasoning", "bottom_line"], "")
+            else: continue
+            
+            story.append(Paragraph(f"<b>{str(d).upper()}:</b> {t}", s_body))
+            story.append(Spacer(1, 6))
+
+    doc.build(story, onFirstPage=draw_background, onLaterPages=draw_background)

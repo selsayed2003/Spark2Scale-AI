@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 import builtwith
 from urllib.parse import urlparse
 
+
 # LangChain & AI Imports
 from langchain_core.messages import HumanMessage
 from langchain_core.prompts import PromptTemplate
@@ -73,7 +74,8 @@ from .helpers import (
     extract_product_data, extract_market_data, 
     extract_vision_data, # Added
     capture_screenshot, check_missing_fields,
-    get_market_signals_serper, get_market_signals_duckduckgo # Added
+    get_market_signals_serper, get_market_signals_duckduckgo,
+    parse_and_repair_json, safe_score_numeric
 )
 from app.core.llm import get_llm
 from app.core.logger import get_logger
@@ -97,7 +99,7 @@ RETRY_CONFIG = {
 async def contradiction_check(data: dict, agent_prompt: str) -> str:
     async with concurrency_limiter:
         logger.info("🤖 Contradiction Check...")
-        llm = get_llm(temperature=0)
+        llm = get_llm(temperature=0, provider="groq")
         chain = PromptTemplate.from_template(agent_prompt) | llm | StrOutputParser()
         return await chain.ainvoke({
             "current_date": datetime.now().strftime("%Y-%m-%d"),
@@ -108,15 +110,14 @@ async def contradiction_check(data: dict, agent_prompt: str) -> str:
 async def team_risk_check(data: dict, agent_prompt: str) -> str:
     async with concurrency_limiter:
         logger.info("📉 Team Risk Check...")
-        llm = get_llm(temperature=0)
+        llm = get_llm(temperature=0, provider="groq")
         chain = PromptTemplate.from_template(agent_prompt) | llm | StrOutputParser()
         return await chain.ainvoke({"json_data": json.dumps(data, indent=2)})
-
 @retry(**RETRY_CONFIG)
 async def loaded_risk_check_with_search(problem_data: dict, search_results: dict, agent_prompt: str) -> str:
     async with concurrency_limiter:
         logger.info("🛡️ Problem Risk Check...")
-        llm = get_llm(temperature=0)
+        llm = get_llm(temperature=0, provider="groq")
         chain = PromptTemplate.from_template(agent_prompt) | llm | StrOutputParser()
         return await chain.ainvoke({
             "internal_json": json.dumps(problem_data, indent=2),
@@ -127,23 +128,29 @@ async def loaded_risk_check_with_search(problem_data: dict, search_results: dict
 async def team_scoring_agent(data_package: dict) -> dict:
     async with concurrency_limiter:
         logger.info("🏆 Team Scoring...")
-        llm = get_llm(temperature=0)
-        chain = PromptTemplate.from_template(TEAM_SCORING_AGENT_PROMPT) | llm | JsonOutputParser()
-        return await chain.ainvoke({
+        llm = get_llm(temperature=0, provider="groq")
+        # Use StrOutputParser + repair_json
+        chain = PromptTemplate.from_template(TEAM_SCORING_AGENT_PROMPT) | llm | StrOutputParser()
+        
+        raw_res = await chain.ainvoke({
             "user_json_data": json.dumps(data_package.get("user_data", {}), indent=2),
             "risk_agent_output": str(data_package.get("risk_report")),
             "contradiction_agent_output": str(data_package.get("contradiction_report")),
             "missing_info_output": str(data_package.get("missing_report"))
         })
+        
+        result_dict = parse_and_repair_json(raw_res)
+        result_dict["score_numeric"] = safe_score_numeric(result_dict)
+        return result_dict
 @retry(**RETRY_CONFIG)
 async def verify_problem_claims(problem_statement: str, target_audience: str) -> dict:
     logger.info("🔎 Verifying Problem Claims...")
     api_key = os.environ.get("SERPER_API_KEY")
     if not api_key: return {"error": "Missing SERPER_API_KEY."}
 
-    # 1. Generate Queries (Needs LLM -> Needs Limiter)
+    # 1. Generate Queries
     async with concurrency_limiter:
-        llm = get_llm(temperature=0)
+        llm = get_llm(temperature=0, provider="groq")
         query_gen_prompt = f"""
         Search Expert. Convert to 3 Google queries.
         Audience: {target_audience}
@@ -152,12 +159,12 @@ async def verify_problem_claims(problem_statement: str, target_audience: str) ->
         """
         try:
             resp = await llm.ainvoke(query_gen_prompt)
-            clean_json = resp.content.replace("```json", "").replace("```", "").strip()
-            queries = json.loads(clean_json)
+            queries = parse_and_repair_json(resp.content)
+            if not isinstance(queries, dict): raise ValueError
         except:
             queries = {"pain_query": f"{problem_statement} reddit", "symptom_query": f"{target_audience} struggle", "solution_query": f"solution {problem_statement}"}
 
-    # 2. Execute Search (No LLM -> No Limiter needed, just async IO)
+    # 2. Execute Search (Async IO)
     url = "https://google.serper.dev/search"
     headers = {'X-API-KEY': api_key, 'Content-Type': 'application/json'}
     results_report = {"generated_queries": queries, "pain_validation_search": [], "competitor_search": []}
@@ -186,22 +193,31 @@ async def verify_problem_claims(problem_statement: str, target_audience: str) ->
 async def problem_scoring_agent(data_package: dict) -> dict:
     async with concurrency_limiter:
         logger.info("🏆 Problem Scoring...")
-        llm = get_llm(temperature=0)
-        chain = PromptTemplate.from_template(PROBLEM_SCORING_AGENT_PROMPT) | llm | JsonOutputParser()
-        return await chain.ainvoke({
+        llm = get_llm(temperature=0, provider="groq")
+        chain = PromptTemplate.from_template(PROBLEM_SCORING_AGENT_PROMPT) | llm | StrOutputParser()
+        
+        inputs = {
             "problem_json": json.dumps(data_package.get("problem_definition", {}), indent=2),
             "missing_report": str(data_package.get("missing_report")),
+            # Optimization: Don't send full JSON search results, just titles/snippets if possible to save tokens
             "search_json": json.dumps(data_package.get("search_report", {}), indent=2),
             "risk_report": str(data_package.get("risk_report")),
             "contradiction_report": str(data_package.get("contradiction_report"))
-        })
+        }
 
+        try:
+            raw_res = await asyncio.wait_for(chain.ainvoke(inputs), timeout=30.0)
+            result_dict = parse_and_repair_json(raw_res)
+            result_dict["score_numeric"] = safe_score_numeric(result_dict)
+            return result_dict
+            
+        except asyncio.TimeoutError:
+            logger.warning("⏰ Groq took too long! Retrying...")
+            raise TimeoutError("Groq Request Timed Out")
 @retry(**RETRY_CONFIG)
 async def tech_stack_detective(url: str):
     logger.info(f"🛠️ Tech Stack Detective: {url}")
     if not url: return {"verdict": "No URL"}
-    
-    # Simple logic, no LLM, no limiter needed
     try:
         tech_data = await asyncio.to_thread(builtwith.parse, url)
         detected = [item for sublist in tech_data.values() for item in sublist]
@@ -212,13 +228,13 @@ async def tech_stack_detective(url: str):
 @retry(**RETRY_CONFIG)
 async def analyze_visuals_with_langchain(company_name, website_url, prompt_template):
     if not website_url: return "No URL."
-    
     capture = await capture_screenshot(website_url)
     if "error" in capture: return f"Visual Error: {capture['error']}"
 
     async with concurrency_limiter:
         logger.info("👁️ Vision Analysis...")
-        llm = get_llm(temperature=0)
+        # Vision requires Gemini (Groq doesn't do image inputs well yet usually)
+        llm = get_llm(temperature=0, provider="groq") 
         msg = HumanMessage(content=[
             {"type": "text", "text": prompt_template.format(company_name=company_name, website_url=website_url)},
             {"type": "image_url", "image_url": f"data:image/png;base64,{capture['image_b64']}"}
@@ -230,9 +246,10 @@ async def analyze_visuals_with_langchain(company_name, website_url, prompt_templ
 async def product_scoring_agent(data_package: dict) -> dict:
     async with concurrency_limiter:
         logger.info("🏆 Product Scoring...")
-        llm = get_llm(temperature=0)
-        chain = PromptTemplate.from_template(PRODUCT_SCORING_AGENT_PROMPT) | llm | JsonOutputParser()
-        return await chain.ainvoke({
+        llm = get_llm(temperature=0, provider="groq")
+        chain = PromptTemplate.from_template(PRODUCT_SCORING_AGENT_PROMPT) | llm | StrOutputParser()
+        
+        raw_res = await chain.ainvoke({
             "current_date": datetime.now().strftime("%Y-%m-%d"),
             "internal_data": json.dumps(data_package.get("internal_data", {}), indent=2),
             "contradiction_report": str(data_package.get("contradiction_report")),
@@ -240,6 +257,10 @@ async def product_scoring_agent(data_package: dict) -> dict:
             "tech_stack_report": str(data_package.get("tech_stack_report")),
             "visual_analysis_report": str(data_package.get("visual_analysis_report"))
         })
+        
+        result_dict = parse_and_repair_json(raw_res)
+        result_dict["score_numeric"] = safe_score_numeric(result_dict)
+        return result_dict
 @retry(**RETRY_CONFIG)
 async def regulation_trend_radar_tool(category: str, location: str):
     logger.info(f"📡 Radar Scan: '{category}' in '{location}'...")
@@ -272,7 +293,6 @@ async def regulation_trend_radar_tool(category: str, location: str):
             results_data["trend_evidence"] = f"Failed: {str(e)}"
 
     return {"tool": "Regulation_Radar", "findings": results_data}
-
 @retry(**RETRY_CONFIG)
 async def tam_sam_verifier_tool(beachhead: str, location: str, claimed_size: str):
     logger.info(f"📊 TAM Check: '{beachhead}' in '{location}'...")
@@ -300,33 +320,25 @@ async def tam_sam_verifier_tool(beachhead: str, location: str, claimed_size: str
     return {"error": "Search Failed"}
 
 async def local_dependency_detective(tech_stack: str, acquisition_channel: str, product_desc: str):
-    """Analyzes platform risk. Uses Limiter because it calls LLM."""
     async with concurrency_limiter:
         logger.info("🕵️ Dependency Detective...")
-        
-        # Fallback logic handled by 'provider="ollama"' inside get_llm wrapper 
-        # But for stability in this script, we default to Gemini with retries
-        llm = get_llm(temperature=0, provider="gemini")
-        
+        llm = get_llm(temperature=0, provider="groq")
         prompt_text = f"""
         Analyze platform risks for Product: {product_desc}, Tech: {tech_stack}, Channel: {acquisition_channel}.
         Respond ONLY JSON: {{ "risk_level": "High/Medium/Low", "red_flags": ["..."], "search_query_needed": "..." }}
         """
-        
         try:
             chain = StrOutputParser()
             resp_text = await llm.ainvoke(prompt_text)
-            clean_json = resp_text.replace("```json", "").replace("```", "").strip()
-            analysis = json.loads(clean_json)
+            analysis = parse_and_repair_json(resp_text)
             return {"tool": "Dependency_Detective", "risk_level": analysis.get("risk_level"), "analysis": str(analysis)}
         except Exception as e:
             return {"tool": "Dependency_Detective", "error": str(e)}
-
 @retry(**RETRY_CONFIG)
 async def market_risk_agent(market_inputs, tam_result, radar_result, dep_result):
     async with concurrency_limiter:
         logger.info("📉 Market Risk...")
-        llm = get_llm(temperature=0)
+        llm = get_llm(temperature=0, provider="groq")
         chain = PromptTemplate.from_template(VALUATION_RISK_MARKET_PROMPT_TEMPLATE) | llm | StrOutputParser()
         return await chain.ainvoke({
             "internal_json": json.dumps(market_inputs, indent=2),
@@ -339,10 +351,10 @@ async def market_risk_agent(market_inputs, tam_result, radar_result, dep_result)
 async def market_scoring_agent(data_package: dict) -> dict:
     async with concurrency_limiter:
         logger.info("⚖️ Market Scoring...")
-        llm = get_llm(temperature=0)
-        chain = PromptTemplate.from_template(MARKET_SCORING_AGENT_PROMPT) | llm | JsonOutputParser()
+        llm = get_llm(temperature=0, provider="groq")
+        chain = PromptTemplate.from_template(MARKET_SCORING_AGENT_PROMPT) | llm | StrOutputParser()
         
-        result_dict = await chain.ainvoke({
+        raw_res = await chain.ainvoke({
             "current_date": datetime.now().strftime("%Y-%m-%d"),
             "internal_data": json.dumps(data_package.get("internal_data", {}), indent=2),
             "contradiction_report": str(data_package.get("contradiction_report", "None")),
@@ -351,12 +363,13 @@ async def market_scoring_agent(data_package: dict) -> dict:
             "dependency_report": str(data_package.get("dependency_report", "None"))
         })
         
+        result_dict = parse_and_repair_json(raw_res)
+        
         # Enrich
-        score_val = str(result_dict.get('score', "0")).split("/")[0]
-        score_num = int(score_val) if score_val.isdigit() else 0
+        result_dict["score_numeric"] = safe_score_numeric(result_dict)
+        score_num = result_dict["score_numeric"] // 20 # back to 0-5 for rubric
         rubric_map = {0: "Undefined", 1: "Narrow", 2: "Medium", 3: "Large", 4: "Expanding", 5: "Blue Ocean"}
         result_dict["rubric_rating"] = rubric_map.get(score_num, "Unknown")
-        result_dict["score_numeric"] = score_num
         return result_dict
 # =========================================================
 # TRACTION AGENT TOOLS
@@ -365,29 +378,28 @@ async def market_scoring_agent(data_package: dict) -> dict:
 @retry(**RETRY_CONFIG)
 async def traction_risk_agent(traction_data: dict, risk_prompt_template: str) -> str:
     async with concurrency_limiter:
-        llm = get_llm(temperature=0)
+        llm = get_llm(temperature=0, provider="groq")
         chain = PromptTemplate.from_template(risk_prompt_template) | llm | StrOutputParser()
         return await chain.ainvoke({"traction_json": json.dumps(traction_data, indent=2)})
-
 @retry(**RETRY_CONFIG)
 async def traction_scoring_agent(data_package: dict) -> dict:
     async with concurrency_limiter:
         logger.info("🚀 Traction Scoring...")
-        llm = get_llm(temperature=0)
+        llm = get_llm(temperature=0, provider="groq")
         traction_data = data_package.get("traction_data", {})
         stage_raw = traction_data.get("context", {}).get("stage", "Pre-Seed").lower()
         template = TRACTION_SCORING_PRE_SEED_PROMPT if "pre" in stage_raw else TRACTION_SCORING_SEED_PROMPT
-        chain = PromptTemplate.from_template(template) | llm | JsonOutputParser()
+        chain = PromptTemplate.from_template(template) | llm | StrOutputParser()
         
-        result_dict = await chain.ainvoke({
+        raw_res = await chain.ainvoke({
             "current_date": datetime.now().strftime("%Y-%m-%d"),
             "internal_data": json.dumps(traction_data, indent=2),
             "contradiction_report": str(data_package.get("contradiction_report", "None")),
             "risk_report": str(data_package.get("risk_report", "None"))
         })
         
-        score_val = str(result_dict.get('score', "0")).split("/")[0]
-        result_dict["score_numeric"] = int(score_val) if score_val.isdigit() else 0
+        result_dict = parse_and_repair_json(raw_res)
+        result_dict["score_numeric"] = safe_score_numeric(result_dict)
         return result_dict
 
 # =========================================================
@@ -397,28 +409,28 @@ async def traction_scoring_agent(data_package: dict) -> dict:
 @retry(**RETRY_CONFIG)
 async def gtm_risk_agent(gtm_data: dict, risk_prompt_template: str) -> str:
     async with concurrency_limiter:
-        llm = get_llm(temperature=0)
+        llm = get_llm(temperature=0, provider="groq")
         chain = PromptTemplate.from_template(risk_prompt_template) | llm | StrOutputParser()
         return await chain.ainvoke({"gtm_json": json.dumps(gtm_data, indent=2)})
-
 @retry(**RETRY_CONFIG)
 async def gtm_scoring_agent(gtm_data: dict, economics_report: dict, contradiction_report: str, risk_report: str) -> dict:
     async with concurrency_limiter:
         logger.info("🚀 GTM Scoring...")
-        llm = get_llm(temperature=0)
+        llm = get_llm(temperature=0, provider="groq")
         stage_raw = gtm_data.get("context", {}).get("stage", "Pre-Seed").lower()
         template = SCORING_GTM_PRE_SEED_PROMPT if "pre" in stage_raw else SCORING_GTM_SEED_PROMPT
-        chain = PromptTemplate.from_template(template) | llm | JsonOutputParser()
+        chain = PromptTemplate.from_template(template) | llm | StrOutputParser()
         
-        result_dict = await chain.ainvoke({
+        raw_res = await chain.ainvoke({
             "current_date": datetime.now().strftime("%Y-%m-%d"),
             "gtm_data": json.dumps(gtm_data, indent=2),
             "economics_report": json.dumps(economics_report, indent=2),
             "contradiction_report": str(contradiction_report),
             "risk_report": str(risk_report)
         })
-        score_val = str(result_dict.get('score', "0")).split("/")[0]
-        result_dict["score_numeric"] = int(score_val) if score_val.isdigit() else 0
+        
+        result_dict = parse_and_repair_json(raw_res)
+        result_dict["score_numeric"] = safe_score_numeric(result_dict)
         return result_dict
 def calculate_economics_with_judgment(gtm_data: dict) -> dict:
     """
@@ -469,42 +481,25 @@ def calculate_economics_with_judgment(gtm_data: dict) -> dict:
     # --- CAC (Source: WallStreetPrep - Σ S&M / New Customers) ---
     # Proxy: We assume 30% of Burn is S&M if not specified
     est_s_m_spend = burn * 0.30
-    if avg_new_users_mo > 0:
-        metrics["implied_cac"] = round(est_s_m_spend / avg_new_users_mo, 2)
-    else:
-        metrics["implied_cac"] = "N/A (0 Users)"
+    months_alive = 6 # Default
+    avg_new_users_mo = total_users / months_alive
+    
+    if avg_new_users_mo > 0: metrics["implied_cac"] = round(est_s_m_spend / avg_new_users_mo, 2)
+    else: metrics["implied_cac"] = "N/A"
+    
+    if total_users > 0: metrics["conversion_rate"] = round((paid_users / total_users) * 100, 2)
+    else: metrics["conversion_rate"] = 0
 
-    # --- Freemium Conversion (Source: Medium/Lincoln Murphy) ---
-    if total_users > 0:
-        metrics["conversion_rate"] = round((paid_users / total_users) * 100, 2)
-    else:
-        metrics["conversion_rate"] = 0
-
-    # --- Payback Period (Proxy for LTV/CAC Rule of 3) ---
     if isinstance(metrics["implied_cac"], (int, float)) and price > 0:
         metrics["payback_months"] = round(metrics["implied_cac"] / price, 1)
-    else:
-        metrics["payback_months"] = "Unknown"
+    else: metrics["payback_months"] = "Unknown"
 
-    # =========================================================
-    # 2. THE LLM JUDGE (The Verdict)
-    # =========================================================
-
-    # Setup LLM using your Factory
-    llm = get_llm(temperature=0)
-
-    # Use the global prompt constant
+    # AI JUDGE
+    llm = get_llm(temperature=0, provider="groq")
     chain = PromptTemplate.from_template(ECONOMIC_JUDGEMENT_PROMPT) | llm | StrOutputParser()
-
     try:
-        # Extract meaningful context description
-        sector_info = strategy.get("icp_description", "Unknown Tech Startup")
-        
-        # We use invoke (Sync) here because this function is CPU-bound logic mostly 
-        # and doesn't block heavily like a network call. 
-        # If preferred, you can make this function async and use ainvoke.
-        judgement_json = chain.invoke({
-            "sector_info": sector_info,
+        raw_judge = chain.invoke({
+            "sector_info": strategy.get("icp_description", "Tech"),
             "stage": context.get("stage", "Pre-Seed"),
             "model": strategy.get("pricing_model", "Unknown"),
             "cac": metrics["implied_cac"],
@@ -516,126 +511,84 @@ def calculate_economics_with_judgment(gtm_data: dict) -> dict:
             "paid_users": int(paid_users),
             "users": int(total_users)
         })
-        
-        # Merge the LLM's judgment into the report
-        try:
-            parsed_judgement = json.loads(judgement_json.replace("```json", "").replace("```", "").strip())
-            metrics["ai_analysis"] = parsed_judgement
-        except:
-             metrics["ai_analysis"] = {"error": "Could not parse AI judgment", "raw": judgement_json}
-
+        metrics["ai_analysis"] = parse_and_repair_json(raw_judge)
     except Exception as e:
-        logger.error(f"Economic Calculation Error: {e}")
         metrics["ai_analysis"] = {"error": str(e)}
 
     return metrics
 async def evaluate_business_model_with_context(business_data: dict) -> dict:
-    """
-    Calculates Profitability & Solvency, then uses an LLM to benchmark 
-    against the specific sector (SaaS vs Hardware vs E-commerce).
-    """
     async with concurrency_limiter:
         logger.info("💰 Analyzing Business Model & Economics...")
-
-        # =========================================================
-        # 1. THE CALCULATOR (Hard Math)
-        # =========================================================
         structure = business_data.get("monetization_structure", {})
         cash = business_data.get("cash_health", {})
-        momentum = business_data.get("revenue_momentum", {}) 
         context = business_data.get("context", {})
-
-        # Safe conversion helpers
+        
+        # ... (Extraction logic) ...
         def safe_float(val):
             try: return float(val)
             except: return 0.0
-
-        # Defaults
+            
         price = safe_float(structure.get("price_point"))
         margin_percent = safe_float(structure.get("gross_margin"))
         burn = safe_float(cash.get("burn_rate"))
         runway_stated = safe_float(cash.get("runway_months"))
-        
-        # Calculate Implied Cost (Cost of Goods Sold)
         cost_to_serve = price * (1 - (margin_percent / 100)) if price > 0 else 0
 
-        # Format Growth
-        growth_raw = momentum.get("growth_rate", "0")
-        
-        # =========================================================
-        # 2. THE LLM JUDGE (Sector Context)
-        # =========================================================
-        
-        # Setup LLM
-        llm = get_llm(temperature=0)
-
-        # Setup Chain
-        chain = PromptTemplate.from_template(BUSINESS_MODEL_JUDGE_PROMPT) | llm | JsonOutputParser()
+        # LLM Judge
+        llm = get_llm(temperature=0, provider="groq")
+        chain = PromptTemplate.from_template(BUSINESS_MODEL_JUDGE_PROMPT) | llm | StrOutputParser()
         
         try:
-            # We need to pull "Sector" from the raw inputs if possible, 
-            # or use the "pricing_model" as a proxy.
-            sector_context = business_data.get("sector_context", "Tech Startup")
-
-            # Use invoke (sync) as this is CPU/logic bound
-            ai_verdict = chain.invoke({
+            raw_res = await chain.ainvoke({
                 "company_name": context.get("company_name", "Startup"),
                 "stage": context.get("stage", "Pre-Seed"),
-                "sector_info": sector_context,
+                "sector_info": business_data.get("sector_context", "Tech"),
                 "pricing_model": structure.get("pricing_model", "Unknown"),
                 "price": price,
                 "margin": margin_percent,
                 "burn": int(burn),
                 "runway": runway_stated,
-                "growth": growth_raw,
+                "growth": "0%",
                 "cost_to_serve": round(cost_to_serve, 2)
             })
+            ai_verdict = parse_and_repair_json(raw_res)
             
-            # Merge Math + AI Verdict
-            report = {
+            return {
                 "metrics": {
                     "monthly_burn": f"${int(burn)}",
                     "runway_months": runway_stated,
-                    "gross_margin": f"{margin_percent}%",
-                    "implied_cost": f"${round(cost_to_serve, 2)}",
-                    "growth_rate": growth_raw
+                    "gross_margin": f"{margin_percent}%"
                 },
                 "ai_analysis": ai_verdict
             }
-            return report
-
         except Exception as e:
-            logger.error(f"Business Model Analysis Failed: {e}")
-            return {
-                "error": "Business Model Analysis Failed", 
-                "details": str(e)
-            }
+            return {"error": str(e)}
 @retry(**RETRY_CONFIG)
 async def business_risk_agent(business_data: dict, risk_prompt_template: str) -> str:
     async with concurrency_limiter:
-        llm = get_llm(temperature=0)
+        llm = get_llm(temperature=0, provider="groq")
         chain = PromptTemplate.from_template(risk_prompt_template) | llm | StrOutputParser()
         return await chain.ainvoke({"business_data": json.dumps(business_data, indent=2)})
-
 @retry(**RETRY_CONFIG)
 async def business_scoring_agent(data_package: dict) -> dict:
     async with concurrency_limiter:
         logger.info("🚀 Business Scoring...")
-        llm = get_llm(temperature=0)
+        llm = get_llm(temperature=0, provider="groq")
         business_data = data_package.get("business_data", {})
         stage_raw = business_data.get("context", {}).get("stage", "Pre-Seed").lower()
         template = SCORING_BIZ_PRE_SEED_PROMPT if "pre" in stage_raw else SCORING_BIZ_SEED_PROMPT
-        chain = PromptTemplate.from_template(template) | llm | JsonOutputParser()
+        chain = PromptTemplate.from_template(template) | llm | StrOutputParser()
         
-        result_dict = await chain.ainvoke({
+        raw_res = await chain.ainvoke({
             "current_date": datetime.now().strftime("%Y-%m-%d"),
             "business_data": json.dumps(business_data, indent=2),
             "calculator_report": json.dumps(data_package.get("calculator_report", {}), indent=2),
             "contradiction_report": str(data_package.get("contradiction_report", "None")),
             "risk_report": str(data_package.get("risk_report", "None"))
         })
-        score_val = str(result_dict.get('score', "0")).split("/")[0]
-        result_dict["score_numeric"] = int(score_val) if score_val.isdigit() else 0
+        
+        result_dict = parse_and_repair_json(raw_res)
+        result_dict["score_numeric"] = safe_score_numeric(result_dict)
         return result_dict
 
 # =========================================================
@@ -644,37 +597,36 @@ async def business_scoring_agent(data_package: dict) -> dict:
 
 @retry(**RETRY_CONFIG)
 async def analyze_category_future(vision_data: dict) -> dict:
-    """Async wrapper for the search helpers"""
     logger.info("🌐 Vision Market Analysis...")
-    
-    # 1. Try Serper First (Fast & Parallel)
-    market_text = await get_market_signals_serper(vision_data)
-    
-    # 2. Conditional Fallback: Only run DDG if Serper failed or returned nothing
-    if "No Serper results found" in market_text or "API Key found" in market_text:
-        logger.warning("⚠️ Serper returned no data. Engaging DuckDuckGo Fallback...")
-        ddg_text = get_market_signals_duckduckgo(vision_data)
-        combined_signals = f"=== DUCKDUCKGO (FALLBACK) ===\n{ddg_text}"
-    else:
-        combined_signals = f"=== SERPER ===\n{market_text}"
-    
-    llm = get_llm(temperature=0)
-    prompt = PromptTemplate.from_template(CATEGORY_FUTURE_PROMPT)
-    chain = prompt | llm | JsonOutputParser()
-    
-    moat = f"{vision_data.get('category_play', {}).get('moat')} (Diff: {vision_data.get('category_play', {}).get('differentiation')})"
-    
-    return await chain.ainvoke({
-        "category": vision_data.get("category_play", {}).get("definition", "Unknown"),
-        "problem": vision_data.get("customer_obsession", {}).get("problem_statement", "Unknown"),
-        "moat": moat,
-        "market_signals": combined_signals
-    })
-
+    try:
+        # Search Phase
+        market_text = await get_market_signals_serper(vision_data)
+        if "No Serper results" in market_text:
+            ddg_text = get_market_signals_duckduckgo(vision_data)
+            combined_signals = f"=== DUCKDUCKGO ===\n{ddg_text}"
+        else:
+            combined_signals = f"=== SERPER ===\n{market_text}"
+        
+        # LLM Phase (Sequential)
+        async with concurrency_limiter:
+            logger.info("🌐 Vision Analysis (LLM)...")
+            llm = get_llm(temperature=0, provider="groq")
+            prompt = PromptTemplate.from_template(CATEGORY_FUTURE_PROMPT)
+            chain = prompt | llm | StrOutputParser()
+            
+            raw_res = await chain.ainvoke({
+                "category": vision_data.get("category_play", {}).get("definition", "Unknown"),
+                "problem": vision_data.get("customer_obsession", {}).get("problem_statement", "Unknown"),
+                "moat": f"{vision_data.get('category_play', {}).get('moat')}",
+                "market_signals": combined_signals
+            })
+            return parse_and_repair_json(raw_res)
+    except Exception as e:
+        return {"error": str(e)}
 @retry(**RETRY_CONFIG)
 async def vision_risk_agent(vision_data: dict, market_analysis: dict, template: str) -> str:
     async with concurrency_limiter:
-        llm = get_llm(temperature=0.1)
+        llm = get_llm(temperature=0, provider="groq")
         chain = PromptTemplate.from_template(template) | llm | StrOutputParser()
         return await chain.ainvoke({
             "vision_data": json.dumps(vision_data, indent=2),
@@ -685,18 +637,19 @@ async def vision_risk_agent(vision_data: dict, market_analysis: dict, template: 
 async def vision_scoring_agent(data_package: dict) -> dict:
     async with concurrency_limiter:
         logger.info("⚖️ Vision Scoring...")
-        llm = get_llm(temperature=0)
-        chain = PromptTemplate.from_template(VISION_SCORING_AGENT_PROMPT) | llm | JsonOutputParser()
+        llm = get_llm(temperature=0, provider="groq")
+        chain = PromptTemplate.from_template(VISION_SCORING_AGENT_PROMPT) | llm | StrOutputParser()
         
-        result_dict = await chain.ainvoke({
+        raw_res = await chain.ainvoke({
             "current_date": datetime.now().strftime("%Y-%m-%d"),
             "vision_data": json.dumps(data_package.get("vision_data", {}), indent=2),
             "market_analysis": json.dumps(data_package.get("market_analysis", {}), indent=2),
             "contradiction_report": str(data_package.get("contradiction_report", "None")),
             "risk_report": str(data_package.get("risk_report", "None"))
         })
-        score_val = str(result_dict.get('score', "0")).split("/")[0]
-        result_dict["score_numeric"] = int(score_val) if score_val.isdigit() else 0
+        
+        result_dict = parse_and_repair_json(raw_res)
+        result_dict["score_numeric"] = safe_score_numeric(result_dict)
         return result_dict
 
 @retry(**RETRY_CONFIG)
@@ -727,7 +680,7 @@ async def get_funding_benchmarks(location: str, stage: str, sector: str) -> str:
 @retry(**RETRY_CONFIG)
 async def operations_risk_agent(operations_data: dict, benchmarks: str, template: str) -> str:
     async with concurrency_limiter:
-        llm = get_llm(temperature=0)
+        llm = get_llm(temperature=0, provider="groq")
         chain = PromptTemplate.from_template(template) | llm | StrOutputParser()
         return await chain.ainvoke({
             "operations_data": json.dumps(operations_data, indent=2),
@@ -738,16 +691,17 @@ async def operations_risk_agent(operations_data: dict, benchmarks: str, template
 async def operations_scoring_agent(data_package: dict) -> dict:
     async with concurrency_limiter:
         logger.info("⚖️ Operations Scoring...")
-        llm = get_llm(temperature=0)
-        chain = PromptTemplate.from_template(OPERATIONS_SCORING_AGENT_PROMPT) | llm | JsonOutputParser()
+        llm = get_llm(temperature=0, provider="groq")
+        chain = PromptTemplate.from_template(OPERATIONS_SCORING_AGENT_PROMPT) | llm | StrOutputParser()
         
-        result_dict = await chain.ainvoke({
+        raw_res = await chain.ainvoke({
             "current_date": datetime.now().strftime("%Y-%m-%d"),
             "operations_data": json.dumps(data_package.get("operations_data", {}), indent=2),
             "benchmarks": str(data_package.get("benchmarks", "None")),
             "contradiction_report": str(data_package.get("contradiction_report", "None")),
             "risk_report": str(data_package.get("risk_report", "None"))
         })
-        score_val = str(result_dict.get('score', "0")).split("/")[0]
-        result_dict["score_numeric"] = int(score_val) if score_val.isdigit() else 0
+        
+        result_dict = parse_and_repair_json(raw_res)
+        result_dict["score_numeric"] = safe_score_numeric(result_dict)
         return result_dict
