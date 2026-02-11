@@ -15,10 +15,15 @@ def generator_node(state: PPTGenerationState) -> PPTGenerationState:
     
     structured_llm = llm.with_structured_output(PPTDraft)
     
-    response = structured_llm.invoke([
+    response: PPTDraft = structured_llm.invoke([
         SystemMessage(content=GENERATOR_SYSTEM_PROMPT),
         HumanMessage(content=f"Create a presentation based on this research:\n\n{research_content}")
     ])
+    
+    # Preserve customization fields
+    response.logo_path = state.get("logo_path")
+    response.color_palette = state.get("color_palette")
+    response.use_default_colors = state.get("use_default_colors", True)
     
     return {"draft": response, "iteration": state["iteration"]}
 
@@ -43,7 +48,7 @@ def refiner_node(state: PPTGenerationState) -> PPTGenerationState:
     
     structured_llm = llm.with_structured_output(PPTDraft)
     
-    response = structured_llm.invoke([
+    response: PPTDraft = structured_llm.invoke([
         SystemMessage(content=REFINER_SYSTEM_PROMPT),
         HumanMessage(content=f"""
         Refine this draft based on the critique.
@@ -58,5 +63,10 @@ def refiner_node(state: PPTGenerationState) -> PPTGenerationState:
         {critique.model_dump_json()}
         """)
     ])
+    
+    # Preserve customization fields
+    response.logo_path = state.get("logo_path")
+    response.color_palette = state.get("color_palette")
+    response.use_default_colors = state.get("use_default_colors", True)
     
     return {"draft": response, "iteration": state["iteration"] + 1}
