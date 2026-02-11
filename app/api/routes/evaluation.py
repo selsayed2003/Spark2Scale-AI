@@ -6,8 +6,10 @@ from fastapi import APIRouter, HTTPException
 from typing import Dict, Any
 from pydantic import BaseModel
 from fastapi.responses import FileResponse
-from app.utils.pdf_generator import generate_pdf_report
+from app.utils.pdf_generator import generate_founder_report, generate_investor_report
+import zipfile
 import uuid
+from app.graph.evaluation_agent.helpers import normalize_input_data
 
 # --- Import Logger ---
 from app.core.logger import get_logger
@@ -37,9 +39,10 @@ logger = get_logger(__name__)
 
 class EvalInput(BaseModel):
     startup_evaluation: Dict[str, Any]
-class ReportInput(BaseModel):
-    # Takes the entire result dict from /evaluate/all
-    report_data: Dict[str, Any]
+
+
+class RawInput(BaseModel):
+    data: Any
 
 # --- Helper to Save JSON ---
 def save_agent_output(agent_name: str, data: dict):
@@ -235,12 +238,20 @@ async def run_product_agent(input_data: EvalInput):
 # =========================================================
 
 @router.post("/evaluate/all")
-async def evaluate_all(input_data: EvalInput):
+async def evaluate_all(raw_payload: RawInput):
     start_time = time.time()
-    logger.info("🚀 Starting FULL Evaluation Pipeline...")
+    
+    # 1. NORMALIZE (The new first step)
+    # Convert input to string if it's a dict to pass to LLM prompt
+    raw_str = json.dumps(raw_payload.data) if isinstance(raw_payload.data, dict) else str(raw_payload.data)
+    
+    normalized_data = await normalize_input_data(raw_str)
+    
+    # 2. RUN PIPELINE (Pass normalized data)
+    logger.info("🚀 Starting FULL Evaluation Pipeline with Normalized Data...")
     try:
         # Run the full LangGraph
-        state = await evaluation_graph.ainvoke({"user_data": input_data.model_dump()})
+        state = await evaluation_graph.ainvoke({"user_data": normalized_data})
         
         # Filter output
         full_report = {
@@ -252,7 +263,8 @@ async def evaluate_all(input_data: EvalInput):
             "gtm_report": state.get("gtm_report"),
             "business_report": state.get("business_report"),
             "vision_report": state.get("vision_report"),
-            "operations_report": state.get("operations_report")
+            "operations_report": state.get("operations_report"),
+            "final_report": state.get("final_report")
         }
         
         save_agent_output("FULL_REPORT", full_report)
@@ -265,28 +277,34 @@ async def evaluate_all(input_data: EvalInput):
         logger.error(f"❌ Full Evaluation Failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
     
-
 @router.post("/generate-report")
-async def generate_report_pdf(report_data: Dict[str, Any]):
+async def generate_reports_endpoint(report_data: Dict[str, Any]):
     """
-    Generates a PDF from the evaluation JSON.
-    Accepts raw JSON dictionary (the output of /evaluate/all).
+    Generates both Founder and Investor reports and returns them as a ZIP.
     """
     try:
-        # Create a unique filename
-        filename = f"outputs/Evaluation_Report_{uuid.uuid4().hex[:8]}.pdf"
-        
-        # Ensure directory exists
+        # Create output dir
         os.makedirs("outputs", exist_ok=True)
+        base_id = uuid.uuid4().hex[:6]
         
-        # Generate PDF using the utility
-        generate_pdf_report(report_data, filename)
+        # 1. Generate Founder PDF
+        f_path = f"outputs/Founder_Report_{base_id}.pdf"
+        generate_founder_report(report_data, f_path)
         
-        # Return as a downloadable file
+        # 2. Generate Investor PDF
+        i_path = f"outputs/Investor_Memo_{base_id}.pdf"
+        generate_investor_report(report_data, i_path)
+        
+        # 3. Zip them together
+        zip_filename = f"outputs/Evaluation_Package_{base_id}.zip"
+        with zipfile.ZipFile(zip_filename, 'w') as zipf:
+            zipf.write(f_path, os.path.basename(f_path))
+            zipf.write(i_path, os.path.basename(i_path))
+            
         return FileResponse(
-            path=filename, 
-            filename="Spark2Scale_Evaluation.pdf", 
-            media_type='application/pdf'
+            path=zip_filename, 
+            filename="Spark2Scale_Evaluation_Package.zip", 
+            media_type='application/zip'
         )
         
     except Exception as e:

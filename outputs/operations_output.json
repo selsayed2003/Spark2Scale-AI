@@ -1,0 +1,17 @@
+{
+  "operations_report": {
+    "score": "0/5",
+    "explanation": "This startup is fundamentally uninvestable today. The cap table is a critical failure, with founders holding only 40% equity at the Seed stage, indicating 'dead equity' and a severe misalignment of incentives. Furthermore, the complete lack of financial data (monthly burn, runway, gross margin) renders any assessment of operational readiness impossible. The stated use of funds is an empty array, and the $5M round target is a delusion without any supporting financial projections or milestones. This is a 'Ghost Ship' scenario where the operational plan is entirely absent, and the financial health is a black box.",
+    "confidence_level": "High",
+    "deal_killer_check": "Broken - The cap table is irrevocably damaged, and there is no operational or financial data to justify any investment.",
+    "red_flags": [
+      "Dead Equity: Founders hold only 40% equity at the Seed stage, a critical failure.",
+      "Ghost Ship: No financial data (burn, runway, gross margin) provided, making operational readiness impossible to assess.",
+      "Undefined Use of Funds: The 'use_of_funds' array is empty, indicating no clear plan for capital deployment.",
+      "Delusional Ask: A $5M round target is presented without any supporting financial projections, milestones, or traction data.",
+      "Lack of Financial Health Data: Essential metrics like monthly burn, runway, and gross margin are null, preventing any viability assessment."
+    ],
+    "green_flags": [],
+    "score_numeric": 0
+  }
+}

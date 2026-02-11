@@ -1,0 +1,366 @@
+{
+  "team_report": {
+    "score": "2.0/5",
+    "explanation": "The team has some relevant experience in AI engineering, but there are several red flags that prevent a higher score. Deducted 0.5 points for lack of domain expertise, 0.5 points for unclear equity split, and 0.5 points for slow execution speed. The team's background does not logically align with the problem statement and solution, and the current solution relies on generic LLMs without specific domain knowledge.",
+    "confidence_level": "Medium",
+    "red_flags": [
+      "Risk 1: Domain Experience Gap - 'prior_experience' and 'years_experience' are low (1 year) for all founders, indicating a lack of reputation in the specific domain.",
+      "Risk 2: Cap Table/Equity Risk - All primary founders have 'ownership_percentage' of 25%, which is low and suggests a lack of commitment or a broken cap table early on.",
+      "Risk 3: Tech & Production Risk - 'product_stage' is only 'Concept' (no code) and 'traction_metrics' show $0 revenue/usage (unproven engine).",
+      "Risk 4: Founder Quality & Insight - The founder's background does not logically align with the 'problem_statement' and 'solution'.",
+      "Risk 5: Founder Quality & Insight - The 'problem_statement' and 'solution' are vague and generic.",
+      "Risk 6: Velocity Risk - Execution speed is slow (e.g., > 3 months to ship MVP), as indicated by the 'full_time_start_date' (2025-07-25) and 'key_shipments' (2026-02-11).",
+      "Risk 7: Timeline Physics - 'Target Close Date' is in the past relative to 'Date Founded' (2025-07-25), which is a logical impossibility."
+    ],
+    "green_flags": [
+      "Strength 1: The team has some relevant experience in AI engineering.",
+      "Strength 2: The founders have a clear fit statement, indicating a good understanding of the problem and solution."
+    ],
+    "score_numeric": 40
+  },
+  "problem_report": {
+    "score": "3.5/5",
+    "explanation": "The problem statement is clear and easy to understand, with a specific pain point of early-stage founders lacking a structured system to validate ideas and develop essential business documents. However, the search results do not confirm the specific symptoms mentioned in the problem statement, and the search results are mostly about general business plan templates and pitch deck examples. Additionally, there are contradictions in the problem statement, such as the 'Urgency' Contradiction (Impact vs. Frequency) and the 'Active Search' Contradiction (Severity vs. Current Solution).",
+    "confidence_level": "Medium",
+    "red_flags": [
+      "Risk 1: Market Education Risk (FAIL) - The search results do not confirm the specific symptoms mentioned in the problem statement.",
+      "Risk 2: The 'Urgency' Contradiction (Impact vs. Frequency) - Impact is listed as 'Critical' but Frequency is 'High (Critical during initial formation and fundraising)'",
+      "Risk 3: The 'Active Search' Contradiction (Severity vs. Current Solution) - Impact is listed as 'High Financial Loss' but Current Solution is 'Generic LLMs (ChatGPT) relying on user prompt engineering skills.'"
+    ],
+    "green_flags": [
+      "Strength 1: The problem statement is clear and easy to understand, with a specific pain point of early-stage founders.",
+      "Strength 2: The customer profile is specific to early-stage founders, which is a clear and targeted audience."
+    ],
+    "score_numeric": 70
+  },
+  "product_report": {
+    "score": "1/5",
+    "explanation": "The startup's product is a generic wrapper around OpenAI with no proprietary data, making it easily replicable. The development stage does not match the physical evidence, and the differentiation is only incremental. The solution is a 'Vitamin' in a market that demands efficiency, and the product claims to serve 'Everyone' or 'All SMEs' with a single feature set. The tech stack is 'No-Code' but claims 'Enterprise Security & High Scale', indicating a scalability mismatch. The roadmap is empty, vague, or just lists 'Marketing'.",
+    "confidence_level": "High",
+    "ocean_analysis": "Red Ocean - The market is crowded with multiple direct competitors.",
+    "red_flags": [
+      "Flag 1: 'The product is a simple wrapper around OpenAI with no proprietary data' (Defensibility Risk)",
+      "Flag 2: 'The development stage does not match the physical evidence' (Vaporware Risk)",
+      "Flag 3: 'The differentiation is only incremental' (Differentiation Risk)",
+      "Flag 4: 'The solution is a 'Vitamin' in a market that demands efficiency' (Value Proposition Risk)",
+      "Flag 5: 'The product claims to serve 'Everyone' or 'All SMEs' with a single feature set' (Product Focus Risk)",
+      "Flag 6: 'The tech stack is 'No-Code' but claims 'Enterprise Security & High Scale' (Scalability Risk)",
+      "Flag 7: 'The roadmap is empty, vague, or just lists 'Marketing'' (Scalability Risk)"
+    ],
+    "green_flags": [],
+    "score_numeric": 20
+  },
+  "market_report": {
+    "score": "2/5",
+    "explanation": "The startup's market size is credible, but the expansion logic is unclear and risky. The founder's claims of targeting the MENA startup ecosystem are validated by the TAM report, but the pricing model is 'Freemium' with a price of $0, which is not a viable path to revenue. The primary channel for acquisition is 'Word of mouth / Community Direct Sales', which is not suitable for high-trust buyers like 'Early-stage Founders'. The expansion strategy is unrelated to the beachhead market, targeting industries such as 'Specialized AI / LegalTech / EdTech'.",
+    "confidence_level": "Medium",
+    "market_sizing_check": "Valid - The TAM report confirms the founder's claims of targeting the MENA startup ecosystem.",
+    "red_flags": [
+      "Flag 1: 'Non-Sequitur' - The beachhead market is 'Early-stage startup owners in MENA' (Business / Tech Startups), but the expansion strategy is unrelated industries such as 'Specialized AI / LegalTech / EdTech'.",
+      "Flag 2: 'Trust Mismatch' - Target customer is 'Early-stage Founders' (High-trust buyers), but the primary channel is 'Word of mouth / Community Direct Sales' which is not suitable for high-trust buyers."
+    ],
+    "green_flags": [
+      "Flag 1: 'Credible' - The founder's claims of targeting the MENA startup ecosystem are validated by the TAM report."
+    ],
+    "score_numeric": 40,
+    "rubric_rating": "Medium"
+  },
+  "traction_report": {
+    "score": "0/5",
+    "explanation": "The startup has a 'Zero Signal' with no users, no waitlist, and no revenue. The 'Contradiction Check' found 'The \"Stagnation\" Contradiction (Time vs. Output)': Execution Lag, 'The \"Validation Gap\" Contradiction (Interviews vs. Commitment)': False Positive, 'The \"Empty Pitch\" Contradiction (No Signal)': Zero Validation, and 'The \"Ghost Pilot\" Contradiction (B2B Only)': Death Zone.",
+    "confidence_level": "High",
+    "velocity_analysis": "Stagnant - The startup has been stagnant with 0 users for over 6 months.",
+    "red_flags": [
+      "Flag 1: 'Found Logic Contradiction: Fake Demand'",
+      "Flag 2: 'Execution Lag: MVP should ship in <3 months, but it has been over 6 months since founding'",
+      "Flag 3: 'Zero Validation: No data point (Revenue, Users, or Pilots) proving anyone wants this'",
+      "Flag 4: 'Death Zone: Planning for long sales cycles without a single LOI signed'"
+    ],
+    "green_flags": [],
+    "score_numeric": 0
+  },
+  "gtm_report": {
+    "score": "1/5",
+    "explanation": "The startup has a generic and unrealistic plan to acquire customers. The 'Impossible Sales' Contradiction is triggered because the sales motion includes 'Founder-led sales' (which implies some level of sales effort) and the price point is 0 (which implies a low-priced product). This combination is mathematically impossible because the cost of sales (CAC) will instantly kill the lifetime value (LTV) of the customer. Additionally, the 'Persona Disconnect' Contradiction is triggered because the ICP description mentions 'Early-stage Founders' (which implies a corporate target) but the buyer persona is 'Any founding team member' (which implies a junior or individual target). This combination is a contradiction because junior employees do not have corporate credit cards or purchasing power.",
+    "confidence_level": "High",
+    "key_strengths": [
+      "ICP description is somewhat specific"
+    ],
+    "key_weaknesses": [
+      "Reliance on passive Word of Mouth",
+      "No clear understanding of the target audience",
+      "Sales motion does not match the price point"
+    ],
+    "score_numeric": 20
+  },
+  "business_report": {
+    "score": "1/5",
+    "explanation": "The startup's pricing model is 'Freemium' with a price point of $0, indicating a lack of clear path to making money. The 'burn rate' is $100, and the 'runway months' is 0, which suggests a high risk of running out of money before finding Product-Market Fit.",
+    "confidence_level": "Low",
+    "profitability_verdict": "Flawed Logic",
+    "red_flags": [
+      "The 'Charity' Risk: The startup has a 'Freemium' pricing model with a price point of $0, indicating a lack of clear path to making money.",
+      "The 'Default Dead' Risk: The startup has a runway of 0 months, indicating a high risk of running out of money before finding Product-Market Fit.",
+      "The 'Service Trap' Risk: The startup has a gross margin of 0%, indicating low margins and high variable costs, which can kill the 'J-Curve' growth potential.",
+      "The 'Price/Value' Risk: The startup's price point of $0 is tiny for a B2B product, indicating a potential mismatch between price and value."
+    ],
+    "green_flags": [],
+    "score_numeric": 20
+  },
+  "vision_report": {
+    "score": "2/5",
+    "explanation": "The startup's vision is ambitious, but the market analysis reveals a more nuanced reality. While the category is growing, the startup's focus on a specific niche ('startup evaluation and validation in the MENA region') may limit its scalability. The 'Fake Moat Alert' and 'Wrong Medicine' contradictions in the forensic report also raise concerns. The 'Tech-Brand Disconnect' and 'Ostrich' flags further indicate a mismatch between the founder's vision and the market reality.",
+    "confidence_level": "Medium",
+    "narrative_check": "Contradictory - The startup's vision is ambitious, but the market analysis reveals a more nuanced reality.",
+    "red_flags": [
+      "Flag 1: 'Fake Moat Alert' - The startup claims a proprietary implementation of core technology and specialized evaluation models as a moat, but it's Pre-Seed with no users.",
+      "Flag 2: 'Wrong Medicine' - The problem statement focuses on the lack of a structured system for early-stage founders, but the differentiation focuses on vertical-specific AI trained on startup evaluation metrics.",
+      "Flag 3: 'Tech-Brand Disconnect' - The differentiation claims a deep tech advantage, but the moat lists a proprietary implementation of core technology, which is not a strong enough moat for a deep tech advantage.",
+      "Flag 4: 'Ostrich' - The 5-year vision implies high-stakes complexity, but the primary risk listed is 'Speed of execution and market entry before competitors or incumbents adapt', which is a relatively trivial risk compared to the existential risks of the industry."
+    ],
+    "green_flags": [
+      "Flag 1: 'High Scalability Outlook' - The market analysis confirms a high scalability outlook due to the growing market and the startup's defensible moat."
+    ],
+    "score_numeric": 40
+  },
+  "operations_report": {
+    "score": "1/5",
+    "explanation": "The startup's plan is marred by several critical issues, including a 'Ghost Ship' contradiction, 'Broken Math' errors, and a 'Delusional Geography' contradiction. The founders own 100% equity, indicating a lack of dilution, but this is not a positive signal given the other red flags. The startup's burn rate is $0, which is unrealistic, and the use of funds is undefined. The round target of $500 is too low to cover the monthly burn, and the valuation is too high for an emerging market like Egypt.",
+    "confidence_level": "High",
+    "deal_killer_check": "Broken - The startup's plan is fundamentally flawed and requires significant revisions.",
+    "red_flags": [
+      "Flag 1: 'Ghost Ship' - The startup is raising money but has $0 monthly burn.",
+      "Flag 2: 'Broken Math' - The round target of $500 is less than the monthly burn of $100 multiplied by the runway months of 0.",
+      "Flag 3: 'Delusional Geography' - The round target of $500 implies a valuation that is too high for an emerging market like Egypt.",
+      "Flag 4: 'Dead Equity' - The founders own 100% equity, indicating a lack of dilution, but this is not a positive signal given the other red flags."
+    ],
+    "green_flags": [],
+    "score_numeric": 20
+  },
+  "final_report": {
+    "investor_output": {
+      "executive_summary": "This Pre-Seed opportunity presents a 'Hook' of a clear problem statement for early-stage founders seeking structured validation and documentation. However, this is critically undermined by 'The Anchor' of a product that is a generic LLM wrapper with no defensibility, coupled with zero traction and a non-viable business model. The weighted score of 15.8/45 reflects these significant concerns, leading to a 'Pass (Not Ready)' verdict primarily due to the lack of a differentiated product and any demonstrable market validation.",
+      "weighted_score": 15.75,
+      "verdict": "Pass (Not Ready)",
+      "deal_breakers": [
+        "The product is a simple wrapper around OpenAI with no proprietary data, making it easily replicable and lacking defensibility.",
+        "The startup has 'Zero Signal' with no users, no waitlist, and no revenue, indicating a complete lack of market validation.",
+        "The pricing model is 'Freemium' with a price point of $0, and the runway is 0 months, presenting a clear path to immediate financial distress."
+      ],
+      "diligence_questions": [
+        "Given the product is a generic LLM wrapper, what specific proprietary data or unique algorithms will be developed to create a defensible moat beyond current off-the-shelf capabilities?",
+        "With zero traction to date, what concrete, measurable steps will be taken in the next 90 days to acquire initial users and validate demand beyond anecdotal conversations?",
+        "How will the 'Freemium' pricing model with a $0 price point be transitioned to a sustainable revenue-generating strategy, and what is the projected timeline for achieving profitability?"
+      ],
+      "scorecard_grid": {
+        "team": 2.0,
+        "problem": 3.5,
+        "product": 1.0,
+        "market": 2.0,
+        "traction": 0.0,
+        "gtm": 1.0,
+        "business": 1.0,
+        "vision": 2.0,
+        "operations": 1.0
+      },
+      "dimension_rationales": [
+        {
+          "dimension": "Team",
+          "rationale": "The team has some AI engineering experience but lacks domain expertise, has unclear equity, and exhibits slow execution."
+        },
+        {
+          "dimension": "Problem",
+          "rationale": "The problem statement is clear, but market validation for the specific pain points is lacking, and there are internal contradictions."
+        },
+        {
+          "dimension": "Product",
+          "rationale": "The product is a generic LLM wrapper with no defensibility, easily replicable, and lacks a clear value proposition or roadmap."
+        },
+        {
+          "dimension": "Market",
+          "rationale": "While the market size is credible, the expansion logic is unclear, and the chosen acquisition channels are mismatched for the target audience."
+        },
+        {
+          "dimension": "Traction",
+          "rationale": "There is a complete absence of any traction metrics, including users, waitlist, or revenue, indicating zero market validation."
+        },
+        {
+          "dimension": "GTM",
+          "rationale": "The Go-To-Market strategy is unrealistic, with a contradictory sales motion for a free product and a disconnect in the ideal customer profile."
+        },
+        {
+          "dimension": "Business",
+          "rationale": "The business model is unsustainable with a $0 price point, zero runway, and a 0% gross margin."
+        },
+        {
+          "dimension": "Vision",
+          "rationale": "The vision is ambitious but lacks a credible moat and is misaligned with the market realities and the identified problem."
+        },
+        {
+          "dimension": "Operations",
+          "rationale": "Operational plans are flawed with unrealistic financial projections, undefined use of funds, and a round target that doesn't align with burn or market."
+        }
+      ]
+    },
+    "founder_output": {
+      "executive_summary": "Your application clearly identifies a problem for early-stage founders, but the current execution and product strategy fall significantly short of what's needed to address it effectively. There's a substantial gap between your ambitious vision and the tangible progress made to date.",
+      "scorecard_grid": {
+        "team": 2.0,
+        "problem": 3.5,
+        "product": 1.0,
+        "market": 2.0,
+        "traction": 0.0,
+        "gtm": 1.0,
+        "business": 1.0,
+        "vision": 2.0,
+        "operations": 1.0
+      },
+      "dimension_analysis": [
+        {
+          "dimension": "Team",
+          "score": 2.0,
+          "confidence_level": "Medium",
+          "justification": "While there's some AI engineering experience, the team lacks deep domain expertise relevant to the problem, and there are concerns about equity distribution and execution speed.",
+          "red_flags": [
+            "Domain Experience Gap",
+            "Cap Table/Equity Risk",
+            "Velocity Risk"
+          ],
+          "improvements": [
+            "Seek advisors with deep domain expertise in startup validation and business development.",
+            "Clarify and finalize the equity split to demonstrate founder commitment."
+          ]
+        },
+        {
+          "dimension": "Problem",
+          "score": 3.5,
+          "confidence_level": "Medium",
+          "justification": "The problem statement is well-articulated and targets a specific audience, but external validation for the severity and urgency of the stated pain points is missing.",
+          "red_flags": [
+            "Market Education Risk (FAIL)",
+            "The 'Urgency' Contradiction (Impact vs. Frequency)",
+            "The 'Active Search' Contradiction (Severity vs. Current Solution)"
+          ],
+          "improvements": [
+            "Conduct extensive customer interviews to validate the specific pain points and quantify the impact.",
+            "Refine the problem statement to eliminate contradictions and ensure clear alignment with market needs."
+          ]
+        },
+        {
+          "dimension": "Product",
+          "score": 1.0,
+          "confidence_level": "High",
+          "justification": "The current product is a generic wrapper around existing LLMs with no proprietary technology or data, making it easily replicable and lacking any defensible moat.",
+          "red_flags": [
+            "Defensibility Risk",
+            "Vaporware Risk",
+            "Differentiation Risk",
+            "Value Proposition Risk",
+            "Product Focus Risk",
+            "Scalability Risk"
+          ],
+          "improvements": [
+            "Develop proprietary algorithms or integrate unique datasets that provide a distinct advantage over generic LLMs.",
+            "Define a clear, focused product roadmap with specific features and milestones beyond 'Marketing'."
+          ]
+        },
+        {
+          "dimension": "Market",
+          "score": 2.0,
+          "confidence_level": "Medium",
+          "justification": "The TAM is credible, but the expansion strategy is disconnected from the beachhead market, and the chosen acquisition channels are not suitable for high-trust buyers.",
+          "red_flags": [
+            "Non-Sequitur",
+            "Trust Mismatch"
+          ],
+          "improvements": [
+            "Develop a coherent expansion strategy that logically builds upon the beachhead market.",
+            "Identify and pilot acquisition channels that build trust with early-stage founders."
+          ]
+        },
+        {
+          "dimension": "Traction",
+          "score": 0.0,
+          "confidence_level": "High",
+          "justification": "There is a complete lack of any traction, including users, waitlist, or revenue, indicating no market validation for the proposed solution.",
+          "red_flags": [
+            "Found Logic Contradiction: Fake Demand",
+            "Execution Lag: MVP should ship in <3 months, but it has been over 6 months since founding",
+            "Zero Validation: No data point (Revenue, Users, or Pilots) proving anyone wants this",
+            "Death Zone: Planning for long sales cycles without a single LOI signed"
+          ],
+          "improvements": [
+            "Launch a Minimum Viable Product (MVP) immediately and focus on acquiring the first 10-50 paying customers.",
+            "Implement a system for tracking and reporting key traction metrics (users, engagement, revenue)."
+          ]
+        },
+        {
+          "dimension": "GTM",
+          "score": 1.0,
+          "confidence_level": "High",
+          "justification": "The Go-To-Market strategy is fundamentally flawed, with a sales motion that is unsustainable for a free product and a disconnect between the target persona and purchasing power.",
+          "red_flags": [],
+          "improvements": [
+            "Re-evaluate the sales motion to align with a viable pricing strategy.",
+            "Clearly define the Ideal Customer Profile (ICP) and the decision-maker within organizations."
+          ]
+        },
+        {
+          "dimension": "Business",
+          "score": 1.0,
+          "confidence_level": "Low",
+          "justification": "The business model is non-existent with a $0 price point, and the company has zero runway, indicating an immediate risk of failure.",
+          "red_flags": [
+            "The 'Charity' Risk",
+            "The 'Default Dead' Risk",
+            "The 'Service Trap' Risk",
+            "The 'Price/Value' Risk"
+          ],
+          "improvements": [
+            "Implement a tiered pricing strategy that reflects the value provided to different customer segments.",
+            "Secure sufficient funding to achieve product-market fit and establish a positive cash flow."
+          ]
+        },
+        {
+          "dimension": "Vision",
+          "score": 2.0,
+          "confidence_level": "Medium",
+          "justification": "While the vision is ambitious, it lacks a credible moat and appears disconnected from the current market realities and the identified problem.",
+          "red_flags": [
+            "Fake Moat Alert",
+            "Wrong Medicine",
+            "Tech-Brand Disconnect",
+            "Ostrich"
+          ],
+          "improvements": [
+            "Develop a clear, defensible moat based on proprietary technology or unique market positioning.",
+            "Align the long-term vision with a realistic assessment of market challenges and competitive landscape."
+          ]
+        },
+        {
+          "dimension": "Operations",
+          "score": 1.0,
+          "confidence_level": "High",
+          "justification": "Operational plans are unrealistic, with a $0 burn rate for a company seeking funding and undefined use of funds, making financial projections impossible.",
+          "red_flags": [
+            "Ghost Ship",
+            "Broken Math",
+            "Delusional Geography",
+            "Dead Equity"
+          ],
+          "improvements": [
+            "Develop a realistic operational budget with a defined monthly burn rate and clear use of funds.",
+            "Set a realistic valuation and round target that aligns with the company's stage and market."
+          ]
+        }
+      ],
+      "top_3_priorities": [
+        "1. Build a Minimum Viable Product (MVP) with a clear differentiator and begin acquiring initial users.",
+        "2. Develop a sustainable pricing strategy and a viable Go-To-Market plan.",
+        "3. Secure domain expertise and clarify founder equity to strengthen the team."
+      ],
+      "weighted_score": 15.75,
+      "verdict": "Pass (Not Ready)"
+    }
+  }
+}

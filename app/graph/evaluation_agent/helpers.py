@@ -4,8 +4,13 @@ import asyncio
 import os # <--- ADD THIS
 import aiohttp # <--- ADD THIS
 from datetime import datetime # <--- ADD THIS
+from langchain_core.prompts import PromptTemplate
+from langchain_core.output_parsers import JsonOutputParser
 from playwright.async_api import async_playwright
+from json_repair import repair_json
+from app.core.llm import get_llm
 from app.core.logger import get_logger
+from app.graph.evaluation_agent.prompts import NORMALIZER_PROMPT
 try:
     from langchain_community.tools import DuckDuckGoSearchRun # <--- ADD THIS (Ensure pip install duckduckgo-search)
 except ImportError:
@@ -13,7 +18,84 @@ except ImportError:
 
 logger = get_logger(__name__)
 
-
+TARGET_SCHEMA = {
+  "startup_evaluation": {
+    "meta_data": { "form_type": "Pre-Seed & Seed Evaluation", "last_updated": "YYYY-MM-DD" },
+    "company_snapshot": {
+      "company_name": "string",
+      "website_url": "string (or empty)",
+      "hq_location": "string",
+      "date_founded": "YYYY-MM-DD",
+      "current_stage": "Pre-Seed / Seed",
+      "amount_raised_to_date": "string (e.g. 'USD 0')",
+      "current_round": { "target_amount": "string", "target_close_date": "YYYY-MM-DD" }
+    },
+    "founder_and_team": {
+      "founders": [
+        {
+          "name": "string",
+          "role": "CEO/CTO/etc",
+          "ownership_percentage": "number",
+          "prior_experience": "string",
+          "years_direct_experience": "number",
+          "founder_market_fit_statement": "string"
+        }
+      ],
+      "execution": { "full_time_start_date": "YYYY-MM-DD", "key_shipments": [{"date": "YYYY-MM-DD", "item": "string"}] }
+    },
+    "problem_definition": {
+      "customer_profile": { "role": "string", "company_size": "string", "industry": "string" },
+      "problem_statement": "string",
+      "current_solution": "string",
+      "gap_analysis": "string",
+      "frequency": "High/Medium/Low",
+      "impact_metrics": { "cost_type": "string", "description": "string" },
+      "evidence": { "interviews_conducted": "number", "customer_quotes": ["string"] }
+    },
+    "product_and_solution": {
+      "product_stage": "Concept / MVP / Live",
+      "demo_link": "string",
+      "core_stickiness": "string",
+      "differentiation": "string",
+      "defensibility_moat": "string"
+    },
+    "market_and_scope": {
+      "beachhead_market": "string",
+      "market_size_estimate": "string",
+      "long_term_vision": "string",
+      "expansion_strategy": "string"
+    },
+    "traction_metrics": {
+      "stage_context": "string",
+      "user_count": "number",
+      "active_users_monthly": "number",
+      "partnerships_and_lois": ["string"],
+      "early_revenue": "string",
+      "growth_rate": "string"
+    },
+    "gtm_strategy": {
+      "buyer_persona": "string",
+      "user_persona": "string",
+      "primary_acquisition_channel": "string",
+      "sales_motion": "string",
+      "average_sales_cycle": "string",
+      "deal_closer": "string"
+    },
+    "business_model": {
+      "pricing_model": "string",
+      "average_price_per_customer": "number",
+      "gross_margin": "number",
+      "monthly_burn": "number",
+      "runway_months": "number"
+    },
+    "vision_and_strategy": {
+      "five_year_vision": "string",
+      "category_definition": "string",
+      "primary_risk": "string",
+      "use_of_funds": ["string"]
+    }
+  }
+}
 def load_schema(schema_name: str) -> str:
     """
     Loads a JSON schema from the schema.json file.
@@ -642,3 +724,70 @@ def get_market_signals_duckduckgo(vision_data: dict) -> str:
         return "\n".join(raw_results)
     except Exception as e:
         return f"DuckDuckGo Error: {str(e)}"
+    
+def parse_and_repair_json(raw_text: str) -> dict:
+    """
+    Robustly parses JSON from LLM output, handling Markdown and unescaped quotes.
+    """
+    try:
+        # 1. Strip Markdown code blocks if present
+        cleaned_text = raw_text.replace("```json", "").replace("```", "").strip()
+        
+        # 2. Use json_repair to handle broken syntax (quotes, commas, etc.)
+        parsed = json.loads(repair_json(cleaned_text))
+        return parsed
+    except Exception as e:
+        logger.error(f"❌ JSON Repair Failed: {e} | Raw: {raw_text[:100]}...")
+        # Return safe fallback to prevent pipeline crash
+        return {
+            "score": "0/5", 
+            "explanation": "Error parsing model output.",
+            "score_numeric": 0,
+            "red_flags": ["Model Output Error"],
+            "green_flags": []
+        }
+
+def safe_score_numeric(result_dict: dict) -> int:
+    """Extracts numeric score 0-100 from string 'X/5'."""
+    try:
+        score_str = str(result_dict.get('score', "0")).split("/")[0]
+        # Remove any non-numeric chars
+        import re
+        clean_score = re.search(r"(\d+(\.\d+)?)", score_str)
+        if clean_score:
+            val = float(clean_score.group(1))
+            return int(val * 20) # Convert 0-5 to 0-100
+        return 0
+    except:
+        return 0
+
+
+async def normalize_input_data(raw_input: str) -> dict:
+    """
+    Takes any string input (messy text, partial JSON) and returns the strict Schema JSON.
+    """
+    logger.info("🧹 Normalizing Input Data...")
+    
+    # Use Gemini (Flash or Pro) for this. It's great at long-context understanding.
+    # Groq works too but Gemini has larger context window if raw_input is huge.
+    llm = get_llm(temperature=0, provider="groq") 
+    
+    chain = PromptTemplate.from_template(NORMALIZER_PROMPT) | llm | JsonOutputParser()
+
+    try:
+        normalized_json = await chain.ainvoke({
+            "target_schema": json.dumps(TARGET_SCHEMA, indent=2),
+            "raw_input": raw_input
+        })
+        
+        # Validation Check: Ensure top-level key exists
+        if "startup_evaluation" not in normalized_json:
+            # If the LLM returned just the inner dict, wrap it
+            return {"startup_evaluation": normalized_json}
+            
+        return normalized_json
+
+    except Exception as e:
+        logger.error(f"Normalization Failed: {e}")
+        # Fallback: Return empty schema structure so pipeline doesn't crash
+        return TARGET_SCHEMA

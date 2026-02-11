@@ -1,6 +1,7 @@
 import asyncio
 import json
-
+from langchain_core.prompts import PromptTemplate
+from langchain_core.output_parsers import JsonOutputParser
 from app.core.llm import get_llm
 from .state import AgentState
 from .tools import (
@@ -59,7 +60,8 @@ from .prompts import (
     VALUATION_RISK_VISION_SEED_PROMPT,
     CONTRADICTION_OPERATIONS_PROMPT_TEMPLATE,
     VALUATION_RISK_OPS_PRE_SEED_PROMPT,
-    VALUATION_RISK_OPS_SEED_PROMPT
+    VALUATION_RISK_OPS_SEED_PROMPT,
+    FINAL_SYNTHESIS_PROMPT
 )
 from .helpers import (
     extract_team_data, 
@@ -78,6 +80,8 @@ from .helpers import (
 from .schema import Plan
 from langchain_google_genai import ChatGoogleGenerativeAI
 import os
+from app.core.logger import get_logger
+logger = get_logger(__name__)
 
 async def planner_node(state: AgentState):
     """
@@ -241,7 +245,7 @@ async def product_final_scoring_node(state: AgentState):
 async def planner_node(state: AgentState):
     """Generates a strategic plan."""
     user_data = state.get("user_data", {})
-    llm = get_llm(temperature=0)
+    llm = get_llm(temperature=0, provider="groq")  
     structured_llm = llm.with_structured_output(Plan)
     
     try:
@@ -499,3 +503,148 @@ async def operations_node(state: AgentState):
         "risk_report": risk_res
     })
     return {"operations_report": score}
+
+
+def calculate_weighted_score(scores: dict, stage: str) -> tuple[float, float, str, dict]:
+    # 1. Normalize 0-100 to 0-5
+    rubric = {k: (v / 20.0) for k, v in scores.items()}
+    
+    # 2. Apply Stage Weights
+    if "pre" in stage.lower():
+        weights = {"team": 1.5, "problem": 1.3, "product": 1.2, "market": 1.0, "traction": 1.0, "gtm": 1.0, "business": 1.0, "vision": 1.0, "operations": 1.0}
+    else:
+        weights = {"team": 1.0, "problem": 1.0, "product": 1.0, "market": 1.0, "traction": 1.5, "gtm": 1.3, "business": 1.2, "vision": 1.0, "operations": 1.0}
+
+    weighted_total = sum(rubric.get(k, 0) * weights.get(k, 1.0) for k in rubric)
+    
+    # 3. STRICT RUBRIC
+    if weighted_total < 20: verdict = "Pass (Not Ready)"
+    elif weighted_total < 26: verdict = "High Risk / Optionality"
+    elif weighted_total < 33: verdict = "Invest (Team Conviction)"
+    elif weighted_total < 40: verdict = "Strong Invest"
+    else: verdict = "Extremely Good"
+
+    return 0, weighted_total, verdict, rubric
+
+# --- MAIN NODE ---
+async def final_node(state: AgentState):
+    user_data = state.get("user_data", {})
+    stage = user_data.get("startup_evaluation", {}).get("company_snapshot", {}).get("current_stage", "Pre-Seed")
+
+    # 1. Collect Scores
+    raw_scores = {
+        k: state.get(f"{k}_report", {}).get("score_numeric", 0) 
+        for k in ["team", "problem", "product", "market", "traction", "gtm", "business", "vision", "operations"]
+    }
+
+    # 2. Math & Verdict
+    _, weighted_total, verdict, rubric_5 = calculate_weighted_score(raw_scores, stage)
+
+    # 3. Build Evidence
+    agent_summaries = ""
+    for key in raw_scores.keys():
+        report = state.get(f"{key}_report", {})
+        score_val = rubric_5.get(key, 0)
+        explanation = report.get("explanation", "No data")
+        confidence = report.get("confidence_level", "Medium")
+        greens = [g.replace("Strength 1:", "").strip() for g in report.get("green_flags", [])]
+        reds = [r.replace("Risk 1:", "").strip() for r in report.get("red_flags", [])]
+        
+        agent_summaries += f"""
+        === {key.upper()} (Score: {score_val:.1f}/5) ===
+        CONFIDENCE: {confidence}
+        ANALYSIS: {explanation}
+        STRENGTHS: {json.dumps(greens)}
+        RISKS: {json.dumps(reds)}
+        ------------------------------------------------
+        """
+
+    # 4. Generate with LLM
+    llm = get_llm(temperature=0.1, provider="gemini") 
+    chain = PromptTemplate.from_template(FINAL_SYNTHESIS_PROMPT) | llm | JsonOutputParser()
+
+    try:
+        final_json = await chain.ainvoke({
+            "stage": stage,
+            "scores_summary": json.dumps(rubric_5, indent=2),
+            "weighted_score": f"{weighted_total:.1f}",
+            "verdict_band": verdict,
+            "agent_summaries": agent_summaries
+        })
+        
+        # ====================================================
+        # 🛡️ SAFETY BACKFILL (Fixes "Missing Sections")
+        # ====================================================
+        required_dims = ["team", "problem", "product", "market", "traction", "gtm", "business", "vision", "operations"]
+        
+        # Access Founder Output safely
+        founder_root = final_json.get("founder_output", {})
+        founder_content = founder_root.get("Content", founder_root) # Handle nesting
+        
+        llm_dims = founder_content.get("dimension_analysis", [])
+        
+        # Map existing dimensions
+        llm_map = {}
+        if isinstance(llm_dims, list):
+            for d in llm_dims:
+                name = d.get("dimension", "").lower()
+                llm_map[name] = d
+        elif isinstance(llm_dims, dict):
+            llm_map = {k.lower(): v for k,v in llm_dims.items()}
+
+        # Rebuild complete list
+        complete_dims = []
+        for key in required_dims:
+            if key in llm_map:
+                complete_dims.append(llm_map[key])
+            else:
+                logger.warning(f"Finalizer skipped {key}. Backfilling.")
+                raw_report = state.get(f"{key}_report", {})
+                complete_dims.append({
+                    "dimension": key.title(),
+                    "score": rubric_5.get(key, 0),
+                    "confidence_level": raw_report.get("confidence_level", "Medium"),
+                    "justification": raw_report.get("explanation", "Analysis pending."),
+                    "red_flags": raw_report.get("red_flags", []),
+                    "improvements": ["Review risks highlighted in analysis."]
+                })
+
+        # Save backfill
+        if "Content" in final_json.get("founder_output", {}):
+            final_json["founder_output"]["Content"]["Dimension Analysis"] = complete_dims
+        else:
+            final_json["founder_output"]["dimension_analysis"] = complete_dims
+        
+        # ====================================================
+        # 🔢 SCORE OVERWRITE (Fixes "Pending / 0.0" Verdict)
+        # ====================================================
+        
+        # 1. Overwrite INVESTOR Output
+        if "Content" in final_json["investor_output"]:
+            final_json["investor_output"]["Content"]["Scorecard Grid"] = rubric_5
+            final_json["investor_output"]["Content"]["Weighted Score"] = weighted_total
+            final_json["investor_output"]["Content"]["Verdict"] = verdict
+        else:
+            final_json["investor_output"]["scorecard_grid"] = rubric_5
+            final_json["investor_output"]["weighted_score"] = weighted_total
+            final_json["investor_output"]["verdict"] = verdict
+
+        # 2. Overwrite FOUNDER Output (THIS WAS MISSING BEFORE)
+        if "Content" in final_json["founder_output"]:
+            final_json["founder_output"]["Content"]["Scorecard Grid"] = rubric_5
+            final_json["founder_output"]["Content"]["Weighted Score"] = weighted_total # Fix
+            final_json["founder_output"]["Content"]["Verdict"] = verdict             # Fix
+        else:
+            final_json["founder_output"]["scorecard_grid"] = rubric_5
+            final_json["founder_output"]["weighted_score"] = weighted_total          # Fix
+            final_json["founder_output"]["verdict"] = verdict                      # Fix
+
+    except Exception as e:
+        logger.error(f"Final Synthesis Failed: {e}")
+        final_json = {
+            "error": str(e),
+            "investor_output": {"verdict": verdict, "weighted_score": weighted_total, "scorecard_grid": rubric_5},
+            "founder_output": {"verdict": verdict, "score": weighted_total, "scorecard_grid": rubric_5, "dimension_analysis": []}
+        }
+
+    return {"final_report": final_json}

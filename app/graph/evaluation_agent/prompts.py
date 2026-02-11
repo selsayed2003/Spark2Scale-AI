@@ -1293,6 +1293,12 @@ TEAM_SCORING_AGENT_PROMPT = """
        "Strength 2: [Description...]"
      ]
    }}
+   IMPORTANT OUTPUT INSTRUCTIONS:
+1. Return ONLY the JSON object. 
+2. Do NOT output markdown formatting like "###" or "**".
+3. Do NOT write an introduction or conclusion.
+4. Start output immediately with "{{" and end with "}}".
+5. IMPORTANT: Use SINGLE QUOTES (') for any internal quoting. Do NOT use double quotes inside the values.
    """
 
 PROBLEM_SCORING_AGENT_PROMPT = """
@@ -1340,6 +1346,13 @@ PROBLEM_SCORING_AGENT_PROMPT = """
        "Strength 2: [Description...]"
      ]
    }}
+
+   IMPORTANT OUTPUT INSTRUCTIONS:
+1. Return ONLY the JSON object. 
+2. Do NOT output markdown formatting like "###" or "**".
+3. Do NOT write an introduction or conclusion.
+4. Start output immediately with "{{" and end with "}}".
+5. IMPORTANT: Use SINGLE QUOTES (') for any internal quoting. Do NOT use double quotes inside the values.
    """
 
 PRODUCT_SCORING_AGENT_PROMPT = """
@@ -1408,7 +1421,13 @@ Evaluate the startup and output the following in JSON format:
     "Flag 2: [...]"
   ]
 }}
-"""
+IMPORTANT OUTPUT INSTRUCTIONS:
+1. Return ONLY the JSON object. 
+2. Do NOT output markdown formatting like "###" or "**".
+3. Do NOT write an introduction or conclusion.
+4. Start output immediately with "{{" and end with "}}".
+5. IMPORTANT: Use SINGLE QUOTES (') for any internal quoting. Do NOT use double quotes inside the values.
+   """
 
 MARKET_SCORING_AGENT_PROMPT = """
 You are the **Lead Market Analyst** for a top-tier Venture Capital firm.
@@ -1475,7 +1494,14 @@ Evaluate the startup and output the following in JSON format:
     "Flag 1: [Strong positive signal, e.g., 'Validated Beachhead' or 'Explosive Market Trend']",
     "Flag 2: [...]"
   ]
-}}"""
+}}
+IMPORTANT OUTPUT INSTRUCTIONS:
+1. Return ONLY the JSON object. 
+2. Do NOT output markdown formatting like "###" or "**".
+3. Do NOT write an introduction or conclusion.
+4. Start output immediately with "{{" and end with "}}".
+5. IMPORTANT: Use SINGLE QUOTES (') for any internal quoting. Do NOT use double quotes inside the values.
+   """
 
 TRACTION_SCORING_PRE_SEED_PROMPT = """
 You are the **Lead Pre-Seed Analyst** for a VC firm.
@@ -1545,7 +1571,14 @@ Evaluate the startup and output the following in JSON format:
     "Flag 1: [Strong positive signal, e.g., 'Rapid shipping velocity' or 'High Retention']"
   ]
 }}
-"""
+
+IMPORTANT OUTPUT INSTRUCTIONS:
+1. Return ONLY the JSON object. 
+2. Do NOT output markdown formatting like "###" or "**".
+3. Do NOT write an introduction or conclusion.
+4. Start output immediately with "{{" and end with "}}".
+5. IMPORTANT: Use SINGLE QUOTES (') for any internal quoting. Do NOT use double quotes inside the values.
+   """
 
 
 TRACTION_SCORING_SEED_PROMPT = """
@@ -1617,7 +1650,13 @@ Evaluate the startup and output the following in JSON format:
     "Flag 1: [Strong positive signal, e.g., 'LTV:CAC > 3']"
   ]
 }}
-"""
+IMPORTANT OUTPUT INSTRUCTIONS:
+1. Return ONLY the JSON object. 
+2. Do NOT output markdown formatting like "###" or "**".
+3. Do NOT write an introduction or conclusion.
+4. Start output immediately with "{{" and end with "}}".
+5. IMPORTANT: Use SINGLE QUOTES (') for any internal quoting. Do NOT use double quotes inside the values.
+   """
 
 SCORING_GTM_PRE_SEED_PROMPT = """
 You are the **Lead GTM Strategist** for a VC firm.
@@ -1687,7 +1726,14 @@ Evaluate the startup and output the following in JSON format:
   "key_weaknesses": [
     "Specific weak point (e.g., 'Reliance on passive Word of Mouth')"
   ]
-}}"""
+}}
+IMPORTANT OUTPUT INSTRUCTIONS:
+1. Return ONLY the JSON object. 
+2. Do NOT output markdown formatting like "###" or "**".
+3. Do NOT write an introduction or conclusion.
+4. Start output immediately with "{{" and end with "}}".
+5. IMPORTANT: Use SINGLE QUOTES (') for any internal quoting. Do NOT use double quotes inside the values.
+   """
 
 SCORING_GTM_SEED_PROMPT = """
 You are the **Lead GTM Strategist** for a VC firm.
@@ -1757,12 +1803,18 @@ Evaluate the startup and output the following in JSON format:
     "e.g., 'Founder is still the only closer'"
   ]
 }}
-"""
+IMPORTANT OUTPUT INSTRUCTIONS:
+1. Return ONLY the JSON object. 
+2. Do NOT output markdown formatting like "###" or "**".
+3. Do NOT write an introduction or conclusion.
+4. Start output immediately with "{{" and end with "}}".
+5. IMPORTANT: Use SINGLE QUOTES (') for any internal quoting. Do NOT use double quotes inside the values.
+   """
 
 SCORING_BIZ_PRE_SEED_PROMPT = """
-You are a **Forensic Financial Analyst** for a VC firm.
-Your job is to evaluate the "Financial Logic & Viability" of a Pre-Seed startup.
-You are looking for **Plausible Economics** and **Survival Capability**.
+You are a **Venture Architect & Strategist** for an early-stage VC.
+Your job is to evaluate the "Business Model Potential" of a Pre-Seed startup.
+At this stage, we do NOT expect revenue. We expect **Logic** and **Viability**.
 
 ### CONTEXT
 **Current Date:** {current_date}
@@ -1772,64 +1824,71 @@ You are looking for **Plausible Economics** and **Survival Capability**.
 {business_data}
 
 **B. Forensic Reports:**
-* **Profitability Calc (Math):** {calculator_report} (Runway, Margins, Burn)
-* **Contradiction Check:** {contradiction_report} (Identity Crisis? Fake SaaS?)
-* **Risk Analysis:** {risk_report} (Solvency risks?)
+* **Profitability Calc:** {calculator_report}
+* **Contradiction Check:** {contradiction_report}
+* **Risk Analysis:** {risk_report}
 
 ---
 
-### 2. SCORING RUBRIC (Pre-Seed Standard)
-**Primary Question:** Does this make economic sense on paper?
+### 2. SCORING RUBRIC (Pre-Seed Adjusted)
+**Primary Question:** If this scales, does the math work?
 
-* **0 - No Monetization Logic (Disqualified):**
-    * Price is $0 (and no paid tier defined).
-    * "Charity" model disguised as business.
-    * Calculator shows 0 months runway (Immediate Bankruptcy).
+* **0 - Fundamental Logic Failure (Disqualified):**
+    * **Non-Profit:** No intent to charge money ever stated.
+    * **Impossible Physics:** Cost to serve (Human labor) > Potential Price (Software pricing).
+    * **Illegal/Fraud:** Ponzi schemes or scams.
 
-* **1 - Unclear or Unrealistic:**
-    * "Fake SaaS": Claims SaaS but margins < 50%.
-    * "Unit Econ Suicide": Price ($10) cannot support Motion (Sales Team).
-    * Runway is < 6 months with no clear funding plan.
+* **1 - Vague or Generic (Risky):**
+    * **"Advertising" Model:** relying on ads without millions of users.
+    * **Undefined Freemium:** "We will be Freemium" but no defined Paid Tier price.
+    * **Vague Pricing:** "We will charge a subscription" (No number attached).
 
-* **2 - Plausible but Unproven (Weak Pass):**
-    * Pricing model makes sense (e.g., $50 SaaS).
-    * Margins are theoretical but healthy (>70%).
-    * Runway is healthy (>9 months).
-    * **BUT:** No validation yet.
+* **2 - Plausible Logic (Standard Pre-Seed):**
+    * **Pre-Revenue / Bootstrapping:** Revenue is $0, but founders are working for equity (Low Burn).
+    * **Standard Model:** Using a standard SaaS pricing model (e.g., Freemium -> Pro Tier).
+    * **Structure:** Burn is low (<$5k/mo), buying time to build.
 
-* **3 - Clear Pricing & Margin Logic (Target Score):**
-    * **Logic:** Pricing aligns perfectly with the Customer (e.g., Enterprise Pricing for B2B).
-    * **Survival:** Runway > 12 months (Safe).
-    * **Validation:** Some early waitlist or pilot interest confirming price sensitivity.
+* **3 - Clear Hypothesis (Target Score):**
+    * **Specific Pricing:** "Targeting $20/user/month" (Even if 0 users yet).
+    * **Margin Potential:** Software margins (80%+) are structurally possible.
+    * **Runway Logic:** Fundraising ask ($500k) covers 12-18 months of estimated burn.
 
-* **4 - Early Validation of Unit Economics (Outlier):**
-    * Early revenue exists ($1k-$5k).
-    * Paid pilots signed at the target price.
-    * Margins are confirmed by actual initial costs.
+* **4 - Early Signals (Strong):**
+    * **LOIs / Waitlist:** No revenue, but customers have committed to pay.
+    * **Pricing Validation:** Competitor price matching or survey data.
+    * **Lean Ops:** Extremely capital efficient path to MVP.
 
-* **5 - Strong Unit Economics (Unicorn Potential):**
-    * High margins (>80%) proven.
-    * Negative working capital (Customers pay upfront annual).
-    * Viral growth with $0 CAC.
+* **5 - Validated Economics (Unicorn Potential):**
+    * **Revenue Flowing:** Actual MRR > $1k at healthy margins.
+    * **Negative Working Capital:** Customers paying upfront.
+    * **Zero-Cost Distribution:** Viral loop confirmed.
 
 ---
 
 ### 3. OUTPUT INSTRUCTIONS
-Evaluate the startup and output the following in JSON format:
+Evaluate the startup. **CRITICAL:** Do not punish "0 Revenue" or "0 Runway" if the startup is just starting (Pre-Seed). Look for the *Logic* of the future model.
 
+Output JSON format:
 ```json
 {{
   "score": "X/5",
-  "explanation": "Evidence-based explanation. Reference specific flags from the Calculator or Risk reports.",
+  "explanation": "Focus on the LOGIC of the model, not the current bank balance. Is the pricing plan realistic for the target customer?",
   "confidence_level": "High / Medium / Low",
-  "profitability_verdict": "Viable / Dangerous / Unknown",
+  "profitability_verdict": "Viable Logic / Flawed Logic / TBD",
   "red_flags": [
-    "Flag 1: [Critical failure, e.g., 'Runway < 6 months']"
+    "Flag 1: [Structural logic gaps]"
   ],
   "green_flags": [
-    "Flag 1: [Strong positive signal, e.g., 'Healthy Margins 80%']"
+    "Flag 1: [Good theoretical margins or lean operations]"
   ]
-}}"""
+}}
+IMPORTANT OUTPUT INSTRUCTIONS:
+1. Return ONLY the JSON object. 
+2. Do NOT output markdown formatting like "###" or "**".
+3. Do NOT write an introduction or conclusion.
+4. Start output immediately with "{{" and end with "}}".
+5. IMPORTANT: Use SINGLE QUOTES (') for any internal quoting. Do NOT use double quotes inside the values.
+"""
 
 SCORING_BIZ_SEED_PROMPT = """
 You are a **Series A Diligence Analyst**.
@@ -1902,7 +1961,14 @@ Evaluate the startup and output the following in JSON format:
     "Flag 1: [Strong positive signal, e.g., 'Efficient Burn <1.5x']"
   ]
 }}
-"""
+
+IMPORTANT OUTPUT INSTRUCTIONS:
+1. Return ONLY the JSON object. 
+2. Do NOT output markdown formatting like "###" or "**".
+3. Do NOT write an introduction or conclusion.
+4. Start output immediately with "{{" and end with "}}".
+5. IMPORTANT: Use SINGLE QUOTES (') for any internal quoting. Do NOT use double quotes inside the values.
+   """
 VISION_SCORING_AGENT_PROMPT = """
 You are the **Lead Venture Partner** for a top-tier VC firm.
 Your job is to evaluate the "Vision, Narrative & Upside" of a startup based on **Internal Claims** vs. **Forensic Evidence**.
@@ -1971,7 +2037,14 @@ Evaluate the startup and output the following in JSON format:
     "Flag 2: [...]"
   ]
 }}
-"""
+
+IMPORTANT OUTPUT INSTRUCTIONS:
+1. Return ONLY the JSON object. 
+2. Do NOT output markdown formatting like "###" or "**".
+3. Do NOT write an introduction or conclusion.
+4. Start output immediately with "{{" and end with "}}".
+5. IMPORTANT: Use SINGLE QUOTES (') for any internal quoting. Do NOT use double quotes inside the values.
+   """
 
 
 OPERATIONS_SCORING_AGENT_PROMPT = """
@@ -2041,7 +2114,14 @@ Evaluate the startup and output the following in JSON format:
     "Flag 2: [...]"
   ]
 }}
-"""
+
+IMPORTANT OUTPUT INSTRUCTIONS:
+1. Return ONLY the JSON object. 
+2. Do NOT output markdown formatting like "###" or "**".
+3. Do NOT write an introduction or conclusion.
+4. Start output immediately with "{{" and end with "}}".
+5. IMPORTANT: Use SINGLE QUOTES (') for any internal quoting. Do NOT use double quotes inside the values.
+   """
 
 VISUAL_VERIFICATION_PROMPT = """
 You are a VC Due Diligence Analyst. Analyze this landing page screenshot.
@@ -2200,3 +2280,79 @@ MARKET_LOCAL_DEPENDENCY_PROMPT = """
         "search_query_needed": "Search query for recent bans (e.g., 'LinkedIn scraping lawsuits') or 'None'"
     }}
     """
+
+FINAL_SYNTHESIS_PROMPT = """
+You are the Investment Committee (IC) Finalizer.
+Synthesize 9 due diligence reports into a final decision.
+
+### INPUT DATA
+Stage: {stage}
+Scores: {scores_summary}
+Weighted Score: {weighted_score} / 45
+Verdict: {verdict_band}
+
+### AGENT EVIDENCE
+{agent_summaries}
+
+---
+
+### GOAL
+Generate TWO JSON outputs.
+
+### PART 1: INVESTOR OUTPUT (JSON key: "investor_output")
+* **Tone:** Analytical, skeptical, detailed.
+* **Content:**
+    * **Executive Summary:** Write a 3-4 sentence narrative paragraph. Start with "This [Stage] opportunity presents a 'Hook' of...". Explicitly contrast the strongest signal (The Hook) against the critical flaw (The Anchor). Mention the weighted score and the primary reason for the verdict.
+    * **Weighted Score:** {weighted_score}
+    * **Verdict:** {verdict_band}
+    * **Deal Breakers:** List 3 specific red flags from the EVIDENCE.
+    * **Diligence Questions:** 3 hard questions based on risks.
+    * **Scorecard Grid:** Dictionary of scores {{ "Team": X, ... }}
+    * **Dimension Rationales (List of objects):**
+        * `dimension`: Name
+        * `rationale`: 1-sentence bottom line justification.
+
+### PART 2: FOUNDER OUTPUT (JSON key: "founder_output")
+* **Tone:** Direct, constructive "Tough Love".
+* **Content:**
+    * **Executive Summary:** Write a 2-3 sentence overview of their application's standing. Focus on the gap between their ambition and their current execution.
+    * **Scorecard Grid:** Dictionary of scores.
+    * **Dimension Analysis (List of objects):**
+        * `dimension`: Name (e.g., "Team")
+        * `score`: Numeric (0-5)
+        * `confidence_level`: High/Medium/Low (Based on evidence).
+        * `justification`: Bulletproof reasoning citing specific evidence.
+        * `red_flags`: List of specific risks found.
+        * `improvements`: 1-2 SPECIFIC, TACTICAL steps (e.g. "Launch cold email campaign", "Switch to tiered pricing").
+    * **Top 3 Priorities (List of strings):** ["1. Fix X...", "2. Build Y...", "3. Hire Z..."]
+
+### OUTPUT FORMAT
+Return strictly VALID JSON with two keys: "investor_output" and "founder_output".
+
+IMPORTANT OUTPUT INSTRUCTIONS:
+1. Return ONLY the JSON object. 
+2. Do NOT output markdown formatting like "###" or "**".
+3. Start output immediately with "{{" and end with "}}".
+4. IMPORTANT: Use SINGLE QUOTES (') for any internal quoting.
+"""
+
+NORMALIZER_PROMPT = """
+You are a **Data Normalization Expert**.
+Your job is to take raw, messy input text and convert it into a STRICT JSON schema.
+
+### TARGET SCHEMA
+{target_schema}
+
+### RAW INPUT DATA
+{raw_input}
+
+### INSTRUCTIONS
+1. **Extract** every possible detail from the raw input to fill the schema fields.
+2. **Infer** logical defaults for missing fields if obvious (e.g., if 'Pre-Seed', set 'current_stage': 'Pre-Seed').
+3. **Format** dates as YYYY-MM-DD. Use today's date if unknown.
+4. **Format** numbers strictly (e.g., "50%" -> 50, "$0" -> 0).
+5. If a field is completely missing and cannot be inferred, use `null` or a generic placeholder like "Not specified".
+6. **Structure** the output to match the `startup_evaluation` key exactly.
+
+**CRITICAL:** Return ONLY valid JSON. No markdown. No comments.
+"""

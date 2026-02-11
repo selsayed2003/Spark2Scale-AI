@@ -35,3 +35,5 @@ class AgentState(TypedDict):
     
     # Optional: Plan from Planner Node
     plan: Annotated[Dict[str, Any], replace_reducer]
+
+    final_report: Annotated[Dict[str, Any], replace_reducer]
