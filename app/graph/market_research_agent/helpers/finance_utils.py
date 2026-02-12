@@ -8,19 +8,19 @@ import numpy as np
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-from app.core.config import settings, gemini_client
+from app.core.config import Config, gemini_client
 from app.graph.market_research_agent import prompts
 from app.graph.market_research_agent.logger_config import get_logger
 
 logger = get_logger("FinanceUtils")
 
-SERPER_API_KEY = settings.SERPER_API_KEY
+SERPER_API_KEY = Config.SERPER_API_KEY
 
 def detect_currency(idea):
     print(f"   🌍 Detecting location and currency for: '{idea}'...")
     try:
         prompt = prompts.detect_currency_prompt(idea)
-        res = gemini_client.GenerativeModel(settings.GEMINI_MODEL_NAME).generate_content(prompt)
+        res = gemini_client.GenerativeModel(Config.GEMINI_MODEL_NAME).generate_content(prompt)
         return json.loads(res.text.replace("```json","").replace("```","").strip())
     except:
         return {"country": "Global", "currency_code": "USD", "currency_symbol": "$"}
@@ -51,7 +51,7 @@ def get_real_world_estimates(idea):
     print(f"   🤖 Identifying cost drivers in {country} ({curr_code})...")
     plan_prompt = prompts.financial_plan_prompt(idea, country, curr_code)
     try:
-        res = gemini_client.GenerativeModel(settings.GEMINI_MODEL_NAME).generate_content(plan_prompt)
+        res = gemini_client.GenerativeModel(Config.GEMINI_MODEL_NAME).generate_content(plan_prompt)
         queries = json.loads(res.text.replace("```json","").replace("```","").strip())
     except:
         queries = [f"commercial rent prices {country}", f"average salary {country}", f"coffee bean price {country}"]
@@ -67,7 +67,7 @@ def get_real_world_estimates(idea):
 def generate_financial_estimates(idea, market_data, currency_code):
     extract_prompt = prompts.financial_extraction_prompt(idea, market_data, currency_code)
     try:
-        res = gemini_client.GenerativeModel(settings.GEMINI_MODEL_NAME).generate_content(extract_prompt)
+        res = gemini_client.GenerativeModel(Config.GEMINI_MODEL_NAME).generate_content(extract_prompt)
         return json.loads(res.text.replace("```json","").replace("```","").strip())
     except Exception as e:
         print(f"⚠️ Extraction Error: {e}")
@@ -143,7 +143,7 @@ def generate_financial_visuals(estimates):
     # --- DYNAMIC ANALYSIS ---
     try:
         prompt = prompts.financial_analysis_prompt(total_startup, curr, break_even_month, monthly_profit)
-        res = gemini_client.GenerativeModel(settings.GEMINI_MODEL_NAME).generate_content(prompt)
+        res = gemini_client.GenerativeModel(Config.GEMINI_MODEL_NAME).generate_content(prompt)
         analysis_text = res.text.strip().replace('"', '')
         with open("data_output/financial_analysis.txt", "w") as f:
             f.write(analysis_text)

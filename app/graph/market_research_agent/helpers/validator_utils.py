@@ -2,13 +2,13 @@ import json
 import http.client
 import os
 import re
-from app.core.config import settings, gemini_client
+from app.core.config import Config, gemini_client
 from app.graph.market_research_agent import prompts
 from app.graph.market_research_agent.logger_config import get_logger
 
 logger = get_logger("ValidatorUtils")
 
-SERPER_API_KEY = settings.SERPER_API_KEY
+SERPER_API_KEY = Config.SERPER_API_KEY
 
 def extract_json_from_text(text):
     """
@@ -45,7 +45,7 @@ def search_forums(query):
 def generate_validation_queries(idea, problem_statement):
     try:
         prompt = prompts.generate_validation_queries_prompt(idea, problem_statement)
-        res = gemini_client.GenerativeModel(settings.GEMINI_MODEL_NAME).generate_content(prompt)
+        res = gemini_client.GenerativeModel(Config.GEMINI_MODEL_NAME).generate_content(prompt)
         return extract_json_from_text(res.text)
     except Exception as e: 
         logger.warning(f"Validation query generation error: {e}")
@@ -55,7 +55,7 @@ def analyze_pain_points(idea, problem_statement, raw_results):
     judge_prompt = prompts.analyze_pain_points_prompt(idea, problem_statement, raw_results)
     
     try:
-        res = gemini_client.GenerativeModel(settings.GEMINI_MODEL_NAME).generate_content(judge_prompt)
+        res = gemini_client.GenerativeModel(Config.GEMINI_MODEL_NAME).generate_content(judge_prompt)
         return extract_json_from_text(res.text)
     except Exception as e:
         logger.error(f"⚠️ Error: {e}")
