@@ -14,7 +14,7 @@ GENERATOR_SYSTEM_PROMPT = """You are an expert pitch deck writer and presentatio
 - Choose: 'minimalist' (clean, modern), 'professional' (corporate, trustworthy), 'creative' (vibrant, bold), or 'dark_modern' (sleek, tech). Match the startup’s vibe.
 
 **Visuals:**
-- **Images:** Simple, icon-style `image_prompt` only—one concept per slide (e.g. "simple flat icon of lightbulb, minimal, white background"). No photorealistic or complex scenes.
+- **Images:** Provide a high-quality, descriptive `image_prompt`. Instead of simple icons, aim for **premium 3D isometric or professional minimalist illustrations**. Use keywords like "high-quality 3D render, soft studio lighting, modern tech style, octane render" or "sophisticated corporate illustration, clean lines, professional palette". Avoid photorealistic people or complex scenes.
 - **Data:** If the research has numbers (TAM/SAM/SOM, growth, revenue), put them in `visualization_data` for a chart and keep bullets punchy.
 """
 

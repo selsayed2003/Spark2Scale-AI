@@ -56,12 +56,12 @@ def map_draft_to_pptx_model(draft: PPTDraft) -> PptxPresentationModel:
         background=PptxFillModel(color=colors.background),
         shapes=[
             PptxTextBoxModel(
-                position=PptxPositionModel(left=80, top=230, width=1120, height=180),
+                position=PptxPositionModel(left=80, top=200, width=1120, height=200),
                 paragraphs=[
                     PptxParagraphModel(
                         text=draft.title,
                         font=PptxFontModel(
-                            size=64,
+                            size=80,
                             font_weight=700,
                             name=fonts.header,
                             color=colors.primary
@@ -72,12 +72,12 @@ def map_draft_to_pptx_model(draft: PPTDraft) -> PptxPresentationModel:
                 text_wrap=True
             ),
             PptxTextBoxModel(
-                position=PptxPositionModel(left=80, top=440, width=1120, height=60),
+                position=PptxPositionModel(left=80, top=460, width=1120, height=80),
                 paragraphs=[
                     PptxParagraphModel(
                         text="POWERED BY SPARK2SCALE AI",
                         font=PptxFontModel(
-                            size=20,
+                            size=24,
                             font_weight=600,
                             name=fonts.body,
                             color=colors.accent
@@ -93,7 +93,7 @@ def map_draft_to_pptx_model(draft: PPTDraft) -> PptxPresentationModel:
     if draft.logo_path:
         title_slide.shapes.append(
             PptxPictureBoxModel(
-                position=PptxPositionModel(left=50, top=50, width=120, height=80),
+                position=PptxPositionModel(left=50, top=50, width=150, height=100),
                 picture=PptxPictureModel(path=draft.logo_path, is_network=False),
                 object_fit=PptxObjectFitModel(fit=PptxObjectFitEnum.CONTAIN)
             )
@@ -108,12 +108,12 @@ def map_draft_to_pptx_model(draft: PPTDraft) -> PptxPresentationModel:
         # 1. Slide Title (premium: bigger, bolder)
         shapes.append(
             PptxTextBoxModel(
-                position=PptxPositionModel(left=60, top=35, width=1160, height=90),
+                position=PptxPositionModel(left=60, top=40, width=1160, height=100),
                 paragraphs=[
                     PptxParagraphModel(
                         text=section.title.upper(),
                         font=PptxFontModel(
-                            size=40,
+                            size=54,
                             font_weight=800,
                             name=fonts.header,
                             color=colors.primary
@@ -131,14 +131,14 @@ def map_draft_to_pptx_model(draft: PPTDraft) -> PptxPresentationModel:
             asset_path = section.visualization_path if section.visualization_path else section.image_path
             
             # Text Cards (premium: bigger body; bold runs use accent color)
-            card_width = 540
-            body_font = PptxFontModel(size=22, name=fonts.body, color=colors.text_primary)
-            highlight_font = PptxFontModel(size=22, name=fonts.body, color=colors.accent, font_weight=700)
+            card_width = 560
+            body_font = PptxFontModel(size=28, name=fonts.body, color=colors.text_primary)
+            highlight_font = PptxFontModel(size=28, name=fonts.body, color=colors.accent, font_weight=700)
             for i, bullet in enumerate(section.content[:3]):
-                card_y = 150 + (i * 158)
+                card_y = 160 + (i * 165)
                 shapes.append(
                     PptxTextBoxModel(
-                        position=PptxPositionModel(left=60, top=card_y, width=card_width, height=145),
+                        position=PptxPositionModel(left=60, top=card_y, width=card_width, height=155),
                         paragraphs=[
                             PptxParagraphModel(
                                 text=bullet,
@@ -152,7 +152,7 @@ def map_draft_to_pptx_model(draft: PPTDraft) -> PptxPresentationModel:
             # Large Image/Chart Card (Right side)
             shapes.append(
                 PptxPictureBoxModel(
-                    position=PptxPositionModel(left=660, top=150, width=560, height=460),
+                    position=PptxPositionModel(left=660, top=160, width=560, height=480),
                     picture=PptxPictureModel(
                         path=asset_path,
                         is_network=False
@@ -164,13 +164,13 @@ def map_draft_to_pptx_model(draft: PPTDraft) -> PptxPresentationModel:
         else:
             # Full Width 3-Column (premium: bigger body; bold = accent color)
             col_width = 360
-            body_font = PptxFontModel(size=24, name=fonts.body, color=colors.text_primary)
-            highlight_font = PptxFontModel(size=24, name=fonts.body, color=colors.accent, font_weight=700)
+            body_font = PptxFontModel(size=32, name=fonts.body, color=colors.text_primary)
+            highlight_font = PptxFontModel(size=32, name=fonts.body, color=colors.accent, font_weight=700)
             for i, bullet in enumerate(section.content[:3]):
                 col_x = 60 + (i * 400)
                 shapes.append(
                     PptxTextBoxModel(
-                        position=PptxPositionModel(left=col_x, top=175, width=col_width, height=410),
+                        position=PptxPositionModel(left=col_x, top=200, width=col_width, height=450),
                         paragraphs=[
                             PptxParagraphModel(
                                 text=bullet,
