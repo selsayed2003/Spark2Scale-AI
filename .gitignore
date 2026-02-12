@@ -216,7 +216,7 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
-
+output/recommendations/*
 # Microsoft Office temporary/lock files
 ~$*
 =======
