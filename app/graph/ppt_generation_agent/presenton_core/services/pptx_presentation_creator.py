@@ -277,7 +277,9 @@ class PptxPresentationCreator:
         text_runs = []
         if paragraph_model.text:
             text_runs = self.parse_html_text_to_text_runs(
-                paragraph_model.font, paragraph_model.text
+                paragraph_model.font,
+                paragraph_model.text,
+                paragraph_model.highlight_font,
             )
         elif paragraph_model.text_runs:
             text_runs = paragraph_model.text_runs
@@ -286,8 +288,13 @@ class PptxPresentationCreator:
             text_run = paragraph.add_run()
             self.populate_text_run(text_run, text_run_model)
 
-    def parse_html_text_to_text_runs(self, font: Optional[PptxFontModel], text: str):
-        return parse_inline_html_to_runs(text, font)
+    def parse_html_text_to_text_runs(
+        self,
+        font: Optional[PptxFontModel],
+        text: str,
+        highlight_font: Optional[PptxFontModel] = None,
+    ):
+        return parse_inline_html_to_runs(text, font, highlight_font)
 
     def populate_text_run(self, text_run: _Run, text_run_model: PptxTextRunModel):
         text_run.text = text_run_model.text

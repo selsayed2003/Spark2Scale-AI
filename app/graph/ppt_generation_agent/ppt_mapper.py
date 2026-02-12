@@ -51,20 +51,19 @@ def map_draft_to_pptx_model(draft: PPTDraft) -> PptxPresentationModel:
     WIDTH = 1280
     HEIGHT = 720
     
-    # --- Title Slide ---
+    # --- Title Slide (premium: larger, bolder) ---
     title_slide = PptxSlideModel(
         background=PptxFillModel(color=colors.background),
         shapes=[
-            # Main Title
             PptxTextBoxModel(
-                position=PptxPositionModel(left=100, top=250, width=1080, height=150),
+                position=PptxPositionModel(left=80, top=230, width=1120, height=180),
                 paragraphs=[
                     PptxParagraphModel(
                         text=draft.title,
                         font=PptxFontModel(
-                            size=72, 
-                            font_weight=700, 
-                            name=fonts.header, 
+                            size=64,
+                            font_weight=700,
+                            name=fonts.header,
                             color=colors.primary
                         ),
                         alignment=PP_ALIGN.CENTER
@@ -72,16 +71,15 @@ def map_draft_to_pptx_model(draft: PPTDraft) -> PptxPresentationModel:
                 ],
                 text_wrap=True
             ),
-            # Subtitle/Branding
             PptxTextBoxModel(
-                position=PptxPositionModel(left=100, top=450, width=1080, height=50),
+                position=PptxPositionModel(left=80, top=440, width=1120, height=60),
                 paragraphs=[
                     PptxParagraphModel(
                         text="POWERED BY SPARK2SCALE AI",
                         font=PptxFontModel(
-                            size=18, 
+                            size=20,
                             font_weight=600,
-                            name=fonts.body, 
+                            name=fonts.body,
                             color=colors.accent
                         ),
                         alignment=PP_ALIGN.CENTER
@@ -107,17 +105,17 @@ def map_draft_to_pptx_model(draft: PPTDraft) -> PptxPresentationModel:
     for section in draft.sections:
         shapes = []
         
-        # 1. Slide Title (Top Left)
+        # 1. Slide Title (premium: bigger, bolder)
         shapes.append(
             PptxTextBoxModel(
-                position=PptxPositionModel(left=60, top=40, width=1160, height=80),
+                position=PptxPositionModel(left=60, top=35, width=1160, height=90),
                 paragraphs=[
                     PptxParagraphModel(
                         text=section.title.upper(),
                         font=PptxFontModel(
-                            size=36, 
-                            font_weight=800, 
-                            name=fonts.header, 
+                            size=40,
+                            font_weight=800,
+                            name=fonts.header,
                             color=colors.primary
                         )
                     )
@@ -132,22 +130,20 @@ def map_draft_to_pptx_model(draft: PPTDraft) -> PptxPresentationModel:
             # Split Layout: Text (Left) + Image/Chart (Right)
             asset_path = section.visualization_path if section.visualization_path else section.image_path
             
-            # Text Cards (Left side)
+            # Text Cards (premium: bigger body; bold runs use accent color)
             card_width = 540
+            body_font = PptxFontModel(size=22, name=fonts.body, color=colors.text_primary)
+            highlight_font = PptxFontModel(size=22, name=fonts.body, color=colors.accent, font_weight=700)
             for i, bullet in enumerate(section.content[:3]):
-                card_y = 150 + (i * 160)
-                # Simple text box (no boundaries)
+                card_y = 150 + (i * 158)
                 shapes.append(
                     PptxTextBoxModel(
-                        position=PptxPositionModel(left=60, top=card_y, width=card_width, height=140),
+                        position=PptxPositionModel(left=60, top=card_y, width=card_width, height=145),
                         paragraphs=[
                             PptxParagraphModel(
                                 text=bullet,
-                                font=PptxFontModel(
-                                    size=20, 
-                                    name=fonts.body,
-                                    color=colors.text_primary
-                                )
+                                font=body_font,
+                                highlight_font=highlight_font
                             )
                         ]
                     )
@@ -166,22 +162,20 @@ def map_draft_to_pptx_model(draft: PPTDraft) -> PptxPresentationModel:
                 )
             )
         else:
-            # Full Width 3-Column Infographic Layout (No Image/Chart)
+            # Full Width 3-Column (premium: bigger body; bold = accent color)
             col_width = 360
+            body_font = PptxFontModel(size=24, name=fonts.body, color=colors.text_primary)
+            highlight_font = PptxFontModel(size=24, name=fonts.body, color=colors.accent, font_weight=700)
             for i, bullet in enumerate(section.content[:3]):
                 col_x = 60 + (i * 400)
-                # Simple text box (cleansed)
                 shapes.append(
                     PptxTextBoxModel(
-                        position=PptxPositionModel(left=col_x, top=180, width=col_width, height=400),
+                        position=PptxPositionModel(left=col_x, top=175, width=col_width, height=410),
                         paragraphs=[
                             PptxParagraphModel(
                                 text=bullet,
-                                font=PptxFontModel(
-                                    size=22, 
-                                    name=fonts.body,
-                                    color=colors.text_primary
-                                ),
+                                font=body_font,
+                                highlight_font=highlight_font,
                                 alignment=PP_ALIGN.CENTER
                             )
                         ]

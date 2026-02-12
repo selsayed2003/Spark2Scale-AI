@@ -17,7 +17,13 @@ def generator_node(state: PPTGenerationState) -> PPTGenerationState:
     
     response: PPTDraft = structured_llm.invoke([
         SystemMessage(content=GENERATOR_SYSTEM_PROMPT),
-        HumanMessage(content=f"Create a presentation based on this research:\n\n{research_content}")
+        HumanMessage(content=f"""Create a premium, catchy pitch presentation from the research below.
+
+Rules: Do NOT copy-paste. Rewrite every slide in your own words—punchy titles, human bullets, confident tone. Use the data for facts and numbers only; phrasing must be fresh and memorable.
+
+Research (use as input only, do not quote verbatim):
+
+{research_content}"""),
     ])
     
     # Preserve customization fields

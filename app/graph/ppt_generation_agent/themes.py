@@ -127,15 +127,16 @@ def create_dynamic_theme(colors: List[str], theme_name: str = "Dynamic") -> Them
         # Fallback to minimalist
         return THEMES[Theme.MINIMALIST]
         
-    # Assign colors with fallbacks
-    primary = colors[0]
-    secondary = colors[1] if len(colors) > 1 else primary
-    accent = colors[2] if len(colors) > 2 else secondary
-    background = "FFFFFF" # Default white background for better readability
+    # Assign colors with fallbacks and strip '#' if present
+    def normalize(c: str) -> str:
+        return c.lstrip('#').upper()
+
+    primary = normalize(colors[0])
+    secondary = normalize(colors[1]) if len(colors) > 1 else primary
+    accent = normalize(colors[2]) if len(colors) > 2 else secondary
+    background = "FFFFFF" 
     text_primary = "000000"
     text_secondary = "333333"
-    
-    # Simple logic to adjust background if primary is very light (optional enhancement)
     
     return ThemeConfig(
         name=theme_name,
@@ -148,5 +149,5 @@ def create_dynamic_theme(colors: List[str], theme_name: str = "Dynamic") -> Them
             text_primary=text_primary,
             text_secondary=text_secondary
         ),
-        fonts=ThemeFont(header="Arial", body="Arial") # Default fonts
+        fonts=ThemeFont(header="Arial", body="Arial")
     )
