@@ -11,8 +11,8 @@ from app.graph.ppt_generation_agent.tools.ppt_tools import generate_pptx_file
 from app.graph.ppt_generation_agent.tools.input_loader import load_input_directory
 from app.core.logger import get_logger
 
-# logger = get_logger(__name__)
-# router = APIRouter()
+logger = get_logger(__name__)
+router = APIRouter()
 
 # Constants
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))

@@ -156,6 +156,7 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+app/graph/ppt_generation_agent/output/*
 
 
 # Spyder project settings

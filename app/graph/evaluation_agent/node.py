@@ -271,6 +271,7 @@ async def team_node(state: AgentState):
         "user_data": team_data, "risk_report": risk_res,
         "contradiction_report": contradiction_res, "missing_report": missing_report
     })
+   
     return {"team_report": score}
 
 async def problem_node(state: AgentState):
