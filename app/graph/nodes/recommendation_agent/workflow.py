@@ -20,7 +20,7 @@ def run_recommendation_agent(raw_input, eval_output, api_key, save_output=True, 
         tuple: (final_report, output_paths) or just final_report if save_output=False
     """
     start_time = time.time()
-    
+    print("start_time", start_time)
     # 1. Parse & Validate
     data = StartupData(**eval_output)
     insights = extract_key_insights(raw_input)
@@ -55,6 +55,7 @@ def run_recommendation_agent(raw_input, eval_output, api_key, save_output=True, 
         print(f"\n✅ Output saved to: {output_paths['folder']}")
         print(f"   - JSON: {output_paths['files']['json']}")
         print(f"   - Markdown: {output_paths['files']['markdown']}")
-    
+    end_time = time.time()
+    print("end_time", end_time)
     return (final_report, output_paths) if save_output else final_report
 
