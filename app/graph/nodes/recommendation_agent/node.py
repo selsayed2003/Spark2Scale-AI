@@ -4,6 +4,7 @@ import time
 from google import genai
 from app.graph.state import AgentState
 from app.core.config import settings
+from app.utils.logger import logger
 from .prompts import SYSTEM_ADVISOR_PROMPT, RECOMMENDATION_PROMPT_TEMPLATE, STATEMENT_IMPROVEMENT_PROMPT
 
 def recommendation_node(state: AgentState):
@@ -14,6 +15,7 @@ def recommendation_node(state: AgentState):
         # Get API key from config
         api_key = settings.GEMINI_API_KEY
         if not api_key:
+            logger.error("GEMINI_API_KEY not configured. Please set it in your .env file.")
             return {"recommendation": "Error: GEMINI_API_KEY not configured. Please set it in your .env file."}
         
         # Extract evaluation output - it might be a string (JSON) or already a dict
@@ -24,6 +26,7 @@ def recommendation_node(state: AgentState):
             except json.JSONDecodeError:
                 # If it's not valid JSON, try to construct a basic structure
                 # This is a fallback - ideally evaluation should output proper JSON
+                logger.error(f"Could not parse evaluation output. Received: {eval_output[:100]}...")
                 return {"recommendation": f"Error: Could not parse evaluation output. Received: {eval_output[:100]}..."}
         
         # Extract raw input - this should be the original input data
@@ -64,8 +67,18 @@ def recommendation_node(state: AgentState):
         from .workflow import run_recommendation_agent
         result = run_recommendation_agent(raw_input, eval_output, api_key, save_output=True)
         
-        # Handle the return value - it can be a tuple or just the report
-        if isinstance(result, tuple):
+        # Handle the return value - it now returns a dict with all results
+        if isinstance(result, dict):
+            return {
+                "recommendation": result.get("final_report"),
+                "recommendation_files": result.get("output_paths"),
+                "insights": result.get("insights"),
+                "matched_patterns": result.get("matched_patterns"),
+                "refined_statements": result.get("refined_statements")
+            }
+        
+        # Backward compatibility for tuple
+        elif isinstance(result, tuple):
             final_report, output_paths = result
             return {
                 "recommendation": final_report,
@@ -78,7 +91,7 @@ def recommendation_node(state: AgentState):
     except Exception as e:
         import traceback
         error_details = traceback.format_exc()
-        print(f"Error in recommendation_node: {error_details}")
+        logger.error(f"Error in recommendation_node: {error_details}")
         return {"recommendation": f"Error in recommendation agent: {str(e)}"}
 
 
@@ -126,7 +139,7 @@ class AgentNodes:
                             "Please try again in a few minutes."
                         ) from e
                 elif "429" in error_msg or "resource_exhausted" in error_msg.lower():
-                     print(f"[WARNING] API Quota Exceeded (429) for refined statements. Skipping refinement step.")
+                     logger.warning("API Quota Exceeded (429) for refined statements. Skipping refinement step.")
                      return None
                 elif "suspended" in error_msg.lower() or "403" in error_msg:
                     raise ValueError(

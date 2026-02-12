@@ -1,7 +1,7 @@
 from langgraph.graph import StateGraph, END
 from app.graph.state import AgentState
 from app.graph.nodes.evaluation_agent import evaluation_node
-from app.graph.nodes.recommendation_agent import recommendation_node
+from app.graph.nodes.recommendation_agent.node import recommendation_node
 from app.graph.nodes.market_research_agent import market_research_node
 from app.graph.nodes.ppt_generation_agent import ppt_generation_node
 

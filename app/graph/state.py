@@ -1,6 +1,8 @@
-from typing import TypedDict, Optional, Dict, Any
+from typing import TypedDict, Optional, Dict, Any, List
 
-class AgentState(TypedDict):
+from app.graph.nodes.recommendation_agent.state import RecommendationState
+
+class AgentState(TypedDict, RecommendationState):
     input_idea: str
     evaluation: Optional[str]
     recommendation: Optional[str]

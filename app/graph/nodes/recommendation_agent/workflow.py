@@ -3,6 +3,7 @@ from .helpers import extract_key_insights
 from .tools import detect_patterns
 from .node import AgentNodes
 from app.utils.output_manager import OutputManager
+from app.utils.logger import logger
 import time
 
 def run_recommendation_agent(raw_input, eval_output, api_key, save_output=True, request_id=None):
@@ -20,7 +21,7 @@ def run_recommendation_agent(raw_input, eval_output, api_key, save_output=True, 
         tuple: (final_report, output_paths) or just final_report if save_output=False
     """
     start_time = time.time()
-    print("start_time", start_time)
+    logger.info(f"Starting recommendation agent workflow for request_id: {request_id}")
     # 1. Parse & Validate
     data = StartupData(**eval_output)
     insights = extract_key_insights(raw_input)
@@ -37,7 +38,12 @@ def run_recommendation_agent(raw_input, eval_output, api_key, save_output=True, 
     replacements = agent.improve_statements(insights)
     final_report = agent.synthesize_report(data, matched_patterns, insights, replacements)
     
-    # 5. Save output if requested
+    # 5. Store intermediate results in the data object (as part of internal state)
+    data.insights = insights
+    data.matched_patterns = matched_patterns
+    data.refined_statements = replacements
+    
+    # 6. Save output if requested
     output_paths = None
     if save_output:
         processing_time = time.time() - start_time
@@ -52,10 +58,17 @@ def run_recommendation_agent(raw_input, eval_output, api_key, save_output=True, 
             request_id=request_id,
             processing_time=processing_time
         )
-        print(f"\n✅ Output saved to: {output_paths['folder']}")
-        print(f"   - JSON: {output_paths['files']['json']}")
-        print(f"   - Markdown: {output_paths['files']['markdown']}")
+        logger.info(f"Output saved to: {output_paths['folder']}")
+    
     end_time = time.time()
-    print("end_time", end_time)
-    return (final_report, output_paths) if save_output else final_report
+    processing_time = end_time - start_time
+    logger.info(f"Recommendation agent workflow completed in {processing_time:.2f} seconds")
+    
+    return {
+        "final_report": final_report,
+        "output_paths": output_paths,
+        "insights": insights,
+        "matched_patterns": matched_patterns,
+        "refined_statements": replacements
+    }
 
