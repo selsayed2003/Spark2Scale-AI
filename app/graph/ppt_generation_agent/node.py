@@ -15,12 +15,23 @@
     
 #     structured_llm = llm.with_structured_output(PPTDraft)
     
-#     response = structured_llm.invoke([
-#         SystemMessage(content=GENERATOR_SYSTEM_PROMPT),
-#         HumanMessage(content=f"Create a presentation based on this research:\n\n{research_content}")
-#     ])
+    response: PPTDraft = structured_llm.invoke([
+        SystemMessage(content=GENERATOR_SYSTEM_PROMPT),
+        HumanMessage(content=f"""Create a premium, catchy pitch presentation from the research below.
+
+Rules: Do NOT copy-paste. Rewrite every slide in your own words—punchy titles, human bullets, confident tone. Use the data for facts and numbers only; phrasing must be fresh and memorable.
+
+Research (use as input only, do not quote verbatim):
+
+{research_content}"""),
+    ])
     
-#     return {"draft": response, "iteration": state["iteration"]}
+    # Preserve customization fields
+    response.logo_path = state.get("logo_path")
+    response.color_palette = state.get("color_palette")
+    response.use_default_colors = state.get("use_default_colors", True)
+    
+    return {"draft": response, "iteration": state["iteration"]}
 
 # def recommender_node(state: PPTGenerationState) -> PPTGenerationState:
 #     logger.info("--- RECOMMENDING IMPROVEMENTS ---")
@@ -43,10 +54,10 @@
     
 #     structured_llm = llm.with_structured_output(PPTDraft)
     
-#     response = structured_llm.invoke([
-#         SystemMessage(content=REFINER_SYSTEM_PROMPT),
-#         HumanMessage(content=f"""
-#         Refine this draft based on the critique.
+    response: PPTDraft = structured_llm.invoke([
+        SystemMessage(content=REFINER_SYSTEM_PROMPT),
+        HumanMessage(content=f"""
+        Refine this draft based on the critique.
         
 #         Original Research:
 #         {research_content}
@@ -59,4 +70,9 @@
 #         """)
 #     ])
     
-#     return {"draft": response, "iteration": state["iteration"] + 1}
+    # Preserve customization fields
+    response.logo_path = state.get("logo_path")
+    response.color_palette = state.get("color_palette")
+    response.use_default_colors = state.get("use_default_colors", True)
+    
+    return {"draft": response, "iteration": state["iteration"] + 1}
