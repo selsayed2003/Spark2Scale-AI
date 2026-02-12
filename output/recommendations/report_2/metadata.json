@@ -1,0 +1,15 @@
+{
+  "request_id": "f9ccc2f8",
+  "created_at": "2026-02-09T03:34:15.634145",
+  "input_summary": {
+    "company_name": "BrainGlow",
+    "stage": "Pre-Seed",
+    "founded": "2024-06-15"
+  },
+  "processing_time_seconds": 31.32272720336914,
+  "status": "success",
+  "output_files": {
+    "json": "output\\recommendations\\report_2\\recommendation.json",
+    "markdown": "output\\recommendations\\report_2\\recommendation.md"
+  }
+}

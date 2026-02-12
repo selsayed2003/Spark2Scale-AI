@@ -1,5 +1,9 @@
-from typing import TypedDict, Optional
+from typing import TypedDict, Optional, Dict, Any, List
 
 class RecommendationState(TypedDict):
-    input_idea: str
-    recommendation: Optional[str]
+    """
+    Intermediate state fields for the recommendation agent.
+    """
+    insights: Optional[Dict[str, Any]]
+    matched_patterns: Optional[List[Dict[str, Any]]]
+    refined_statements: Optional[Dict[str, Any]]
