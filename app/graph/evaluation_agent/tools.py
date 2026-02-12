@@ -16,7 +16,6 @@ from langchain_core.output_parsers import StrOutputParser, JsonOutputParser
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_google_genai.chat_models import ChatGoogleGenerativeAIError
 from google.api_core.exceptions import ResourceExhausted
-from langsmith import traceable
 
 # Resilience
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
@@ -216,7 +215,6 @@ async def problem_scoring_agent(data_package: dict) -> dict:
             logger.warning("⏰ Groq took too long! Retrying...")
             raise TimeoutError("Groq Request Timed Out")
 @retry(**RETRY_CONFIG)
-@traceable(name="Tech Stack Detective")
 async def tech_stack_detective(url: str):
     logger.info(f"🛠️ Tech Stack Detective: {url}")
     if not url: return {"verdict": "No URL"}
@@ -434,7 +432,6 @@ async def gtm_scoring_agent(gtm_data: dict, economics_report: dict, contradictio
         result_dict = parse_and_repair_json(raw_res)
         result_dict["score_numeric"] = safe_score_numeric(result_dict)
         return result_dict
-@traceable(name="Economics Calculator")
 def calculate_economics_with_judgment(gtm_data: dict) -> dict:
     """
     Calculates Unit Economics using WallStreetPrep & HBS formulas, 

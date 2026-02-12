@@ -2321,7 +2321,6 @@ Generate TWO JSON outputs.
         * `dimension`: Name (e.g., "Team")
         * `score`: Numeric (0-5)
         * `confidence_level`: High/Medium/Low (Based on evidence).
-        * `description`: A detailed summary paragraph that synthesizes the explanation, key red flags (weaknesses), and green flags (strengths) into a cohesive narrative.
         * `justification`: Bulletproof reasoning citing specific evidence.
         * `red_flags`: List of specific risks found.
         * `improvements`: 1-2 SPECIFIC, TACTICAL steps (e.g. "Launch cold email campaign", "Switch to tiered pricing").
