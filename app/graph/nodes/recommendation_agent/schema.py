@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, TypedDict
 
 class SectionScore(BaseModel):
     score: int
@@ -20,3 +20,14 @@ class StartupData(BaseModel):
     stage: str
     company_context: str
     scores: StartupScores
+    # Added intermediate fields for internal state tracking
+    insights: Optional[Dict[str, Any]] = None
+    matched_patterns: Optional[List[Dict[str, Any]]] = None
+    refined_statements: Optional[Dict[str, Any]] = None
+
+class RecommendationState(TypedDict):
+    insights: Optional[Dict[str, Any]]
+    matched_patterns: Optional[List[Dict[str, Any]]]
+    refined_statements: Optional[Dict[str, Any]]
+    final_report: Optional[str]
+    output_paths: Optional[Dict[str, Any]]
