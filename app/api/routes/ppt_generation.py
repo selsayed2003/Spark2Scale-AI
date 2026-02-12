@@ -5,8 +5,8 @@ from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel
 from app.graph.ppt_generation_agent import app_graph
 from app.graph.ppt_generation_agent.state import PPTGenerationState
-from app.graph.ppt_generation_agent.utils import generate_pptx_file
-from app.graph.ppt_generation_agent.input_loader import load_input_directory
+from app.graph.ppt_generation_agent.tools.ppt_tools import generate_pptx_file
+from app.graph.ppt_generation_agent.tools.input_loader import load_input_directory
 from app.core.logger import get_logger
 
 logger = get_logger(__name__)
@@ -97,26 +97,37 @@ async def generate_test_ppt():
 @router.post("/generate-from-local")
 async def generate_from_local():
     """Scan the input folder for JSON or CSV files and generate a presentation."""
+    return await generate_deck_from_local_files()
+
+async def generate_deck_from_local_files(output_dir: str = OUTPUT_DIR) -> dict:
+    """
+    Scans the input folder for JSON or CSV files, constructs the state, 
+    and runs the PPT generation workflow. 
+    Can be called by API or CLI.
+    """
     loaded = load_input_directory(INPUT_DIR)
     if not loaded.research_data and not loaded.flat_data:
         raise HTTPException(
             status_code=400,
             detail="No JSON or CSV files found in the input directory.",
         )
+    
     research_data = loaded.research_data.strip() or _flat_data_to_research_text(loaded.flat_data)
     logo_path = os.path.join(INPUT_DIR, "Logo.jpg")
     timestamp = int(time.time())
-    output_filename = os.path.join(OUTPUT_DIR, f"api_local_bundle_{timestamp}.pptx")
+    output_filename = os.path.join(output_dir, f"premium_pitch_deck_{timestamp}.pptx")
+    
     initial_state: PPTGenerationState = {
         "research_data": research_data,
         "logo_path": logo_path if os.path.exists(logo_path) else None,
         "color_palette": None,
-        "use_default_colors": False,
+        "use_default_colors": not os.path.exists(logo_path),
         "draft": None,
         "critique": None,
         "iteration": 0,
         "ppt_path": None,
     }
+    
     return await run_ppt_generation(initial_state, output_filename)
 
 

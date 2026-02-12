@@ -8,21 +8,6 @@ import os
 from dataclasses import dataclass
 from typing import Any, Dict, List
 
-# Maps common CSV headers to standard fields (used for CSV and for flat dict keys)
-FIELD_MAPPINGS = {
-    "problem": ["problem", "problem definition", "pain point", "challenge"],
-    "solution": ["solution", "the solution", "product", "offering"],
-    "validation": ["validation", "market validation", "proof", "evidence"],
-    "market_size": ["market", "market size", "tam", "opportunity"],
-    "business_model": ["business model", "revenue", "monetization", "pricing"],
-    "traction": ["traction", "metrics", "growth", "users", "revenue"],
-    "team": ["team", "founders", "leadership"],
-    "ask": ["ask", "fundraising", "investment", "funding"],
-    "company": ["company", "company name", "startup", "name"],
-    "competitors": ["competitors", "competition", "landscape"],
-    "advantages": ["advantages", "competitive advantages", "moat", "edges", "differentiators"],
-}
-
 
 @dataclass
 class LoadedInput:
@@ -32,38 +17,43 @@ class LoadedInput:
     source: str  # "csv" | "json"
 
 
-def read_csv_flexible(filepath: str) -> dict:
-    """Read CSV with flexible header detection. Returns flat dict with standard field names where possible."""
+def read_csv_strict(filepath: str) -> dict:
+    """Read CSV into a dictionary using the first row as headers."""
     data = {}
     with open(filepath, "r", encoding="utf-8") as f:
         content = f.read()
+    
     lines = content.strip().split("\n")
     if not lines:
         return data
+        
     if "," in lines[0]:
         reader = csv.reader(lines)
         rows = list(reader)
-        if len(rows[0]) == 2:
-            for row in rows:
-                if len(row) >= 2:
-                    key = row[0].strip().lower()
-                    value = row[1].strip()
-                    for std_field, variations in FIELD_MAPPINGS.items():
-                        if any(v in key for v in variations):
-                            data[std_field] = value
-                            break
-                    else:
-                        data[key] = value
-        else:
-            headers = [h.strip().lower() for h in rows[0]]
-            for row in rows[1:]:
-                for i, value in enumerate(row):
-                    if i < len(headers):
-                        key = headers[i]
-                        for std_field, variations in FIELD_MAPPINGS.items():
-                            if any(v in key for v in variations):
-                                data[std_field] = value.strip()
-                                break
+        if not rows:
+            return data
+            
+        headers = [h.strip().lower() for h in rows[0]]
+        if len(rows) > 1:
+            # Assume 2-column key-value if headers are 'key', 'value' or similar, 
+            # OR if it just looks like k-v pairs. 
+            # But for "strict" reading of a typical CSV, we often expect a single row of values for 1 record,
+            # or multiple rows where we might want list of dicts.
+            # However, this loader seems to target a single "flat dict" for one startup.
+            # Strategy: If 2 columns, treat as Key-Value pairs.
+            # If >2 columns, treat row 2 as the values for headers in row 1.
+            
+            if len(headers) == 2:
+                for row in rows: # Treat all rows (including header if it looks like data) as KV? 
+                    # Usually better to skip header if it says "field,value".
+                    if len(row) >= 2:
+                        data[row[0].strip()] = row[1].strip()
+            else:
+                # Treat as horizontal record (Header Row + Value Row)
+                values = rows[1]
+                for i, h in enumerate(headers):
+                    if i < len(values):
+                        data[h] = values[i].strip()
     else:
         data["content"] = content
     return data
@@ -255,7 +245,7 @@ def load_input_directory(input_dir: str) -> LoadedInput:
     flat_data = {}
     research_parts = []
     for path in sorted(all_csv):
-        flat_data.update(read_csv_flexible(path))
+        flat_data.update(read_csv_strict(path))
         with open(path, "r", encoding="utf-8") as f:
             research_parts.append(f"--- {os.path.basename(path)} ---\n{f.read()}")
     research_data = "\n\n".join(research_parts) if research_parts else ""

@@ -7,7 +7,11 @@ GENERATOR_SYSTEM_PROMPT = """You are an expert pitch deck writer and presentatio
 - **Premium feel:** Confident but not arrogant. Specific over vague. Avoid walls of text, filler phrases, and corporate buzzwords. Every line should earn its place.
 
 **Structure:**
-- Use the research to cover: Problem, Solution, Market Size, Traction, Team, Business Model, Ask (and Validation/Competitors if relevant). Section titles can be creative; content must stay accurate to the data.
+- Use the research to cover these **main slide headers**: **Problem**, **Solution**, **Market / Opportunity**, **Product**, **Business Model**, **Traction**, **Team**, **The Ask** (and **Validation** / **Competitors** if relevant).
+- For each slide, set `title` to **start with the main header name**, then optionally add a short, catchy subtitle. Examples:
+  - "Problem — Founders Are Stuck In The Dark"
+  - "Solution — AI That Writes Investor-Ready Stories"
+  - "Market / Opportunity — A Growing $10B+ Space"
 - **Bold key words:** In each bullet, wrap 1–3 impact words in <b>...</b> (e.g. "We unlock <b>50% faster</b> validation.").
 
 **Theme:**
