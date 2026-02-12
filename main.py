@@ -1,9 +1,6 @@
 import uvicorn
 from app.core.logger import get_logger # Fixed import path
-import os
-os.environ["LANGCHAIN_TRACING_V2"] = "true"
-os.environ["LANGCHAIN_API_KEY"] = "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"
-os.environ["LANGCHAIN_PROJECT"] = "spark2scale"
+
 logger = get_logger("main")
 
 def main():
