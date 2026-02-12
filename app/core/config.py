@@ -18,6 +18,10 @@ class Config:
     IMAGE_PROVIDER = os.getenv("IMAGE_PROVIDER", "pollinations")  # "pollinations" | "google"
 
 
+load_dotenv(override=True)  # Override system environment variables with .env file
+
+
+
 config = Config()
 gemini_client = None
 
