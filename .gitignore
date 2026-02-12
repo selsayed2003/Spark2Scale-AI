@@ -219,3 +219,10 @@ __marimo__/
 
 # Microsoft Office temporary/lock files
 ~$*
+=======
+
+
+/data_output/*
+
+
+.env

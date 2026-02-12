@@ -1,1 +1,1 @@
-from .workflow import app_graph
+from .workflow import market_research_app
