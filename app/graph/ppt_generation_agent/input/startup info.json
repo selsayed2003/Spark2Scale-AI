@@ -1,0 +1,120 @@
+{
+    "startup_evaluation": {
+      "meta_data": {
+        "form_type": "Pre-Seed & Seed Evaluation",
+        "last_updated": "2026-02-11"
+      },
+      "company_snapshot": {
+        "company_name": "Tabaani",
+        "website_url": "https://tabaani.com",
+        "hq_location": "Egypt",
+        "date_founded": "2025-05-01",
+        "current_stage": "Pre-seed",
+        "amount_raised_to_date": "USD 0",
+        "current_round": {
+          "target_amount": "USD 500,000",
+          "target_close_date": "2026-06-01"
+        }
+      },
+      "founder_and_team": {
+        "founders": [
+          {
+            "name": "Ahmed Hassan",
+            "role": "CEO",
+            "ownership_percentage": 40,
+            "prior_experience": "Startup Consultant",
+            "years_direct_experience": 5,
+            "founder_market_fit_statement": "Strong experience with early-stage startups in MENA."
+          },
+          {
+            "name": "Mona Ali",
+            "role": "CTO",
+            "ownership_percentage": 30,
+            "prior_experience": "ML Engineer at TechLabs",
+            "years_direct_experience": 4,
+            "founder_market_fit_statement": "Experienced in AI-driven business tools."
+          },
+          {
+            "name": "Sara Khaled",
+            "role": "COO",
+            "ownership_percentage": 30,
+            "prior_experience": "Operations Manager",
+            "years_direct_experience": 6,
+            "founder_market_fit_statement": "Operations expertise ensures smooth execution."
+          }
+        ],
+        "execution": {
+          "full_time_start_date": "2025-05-25",
+          "key_shipments": []
+        }
+      },
+      "problem_definition": {
+        "customer_profile": {
+          "role": "Early-stage founders",
+          "company_size": "2-50 people",
+          "industry": "Tech / Business Startups"
+        },
+        "problem_statement": "Founders lack a structured AI system to validate ideas and generate investor-ready documents.",
+        "current_solution": "Manual research and general-purpose AI tools.",
+        "gap_analysis": "Current solutions are too generic; no specialized AI for startup evaluation.",
+        "frequency": "High (50%+ of startups fail in early years).",
+        "impact_metrics": {
+          "cost_type": "Time, Money, and Risk",
+          "description": "Founders lose resources due to unvalidated ideas."
+        },
+        "evidence": {
+          "interviews_conducted": 15,
+          "customer_quotes": [
+            "Need clear evaluation guidance",
+            "Current AI tools are not specific enough"
+          ]
+        }
+      },
+      "product_and_solution": {
+        "product_stage": "MVP",
+        "demo_link": "",
+        "core_stickiness": "AI-driven evaluation reports for early-stage founders",
+        "differentiation": "Specialized for startup evaluation; sector-focused AI",
+        "defensibility_moat": "Proprietary AI algorithms for idea scoring and document generation"
+      },
+      "market_and_scope": {
+        "beachhead_market": "Early-stage startup owners in MENA",
+        "market_size_estimate": "$500M",
+        "long_term_vision": "Integrate mentorship, expand regionally, add more AI-driven validation tools",
+        "expansion_strategy": "Launch additional products, partnerships, and tools"
+      },
+      "traction_metrics": {
+        "stage_context": "Pre-Seed",
+        "user_count": 0,
+        "active_users_monthly": 0,
+        "partnerships_and_lois": [],
+        "early_revenue": "0"
+      },
+      "gtm_strategy": {
+        "buyer_persona": "Startup founders",
+        "user_persona": "Founder / Co-founder",
+        "primary_acquisition_channel": "Word of mouth / Startup communities",
+        "sales_motion": "Founder-led outreach",
+        "average_sales_cycle": "0 days",
+        "deal_closer": "None yet"
+      },
+      "business_model": {
+        "pricing_model": "Freemium",
+        "average_price_per_customer": 0,
+        "gross_margin": 0,
+        "monthly_burn": 1200,
+        "runway_months": 12
+      },
+      "vision_and_strategy": {
+        "five_year_vision": "Become the leading AI startup evaluator in MENA",
+        "category_definition": "Specialized AI for startup evaluation",
+        "primary_risk": "Execution speed and market adoption",
+        "use_of_funds": [
+          "AI model development",
+          "Deployment",
+          "Customer acquisition"
+        ]
+      }
+    }
+  }
+  
