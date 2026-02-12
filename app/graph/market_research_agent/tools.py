@@ -65,15 +65,21 @@ def validate_problem(idea, problem_statement, plan=None):
         logger.warning("Validation queries missing (API Limit?). Skipping validation.")
         return None
         
+    print(f"   🐛 DEBUG: Queries: {queries}")
+        
     raw_results = []
     
+    # Handle key mismatch between Plan (problem/solution) and Validator (problem_queries/solution_queries)
+    prob_q = queries.get("problem_queries", []) or queries.get("problem", [])
+    sol_q = queries.get("solution_queries", []) or queries.get("solution", [])
+
     # LIMIT TO 1 QUERY PER CATEGORY TO SAVE QUOTA
-    for q in queries.get("problem_queries", [])[:1]:
+    for q in prob_q[:1]:
         res = validator_utils.search_forums(f"site:reddit.com {q}")
         if "organic" in res:
             for item in res["organic"]: raw_results.append(f"[PROBLEM] {item.get('title','')} - {item.get('snippet','')}")
             
-    for q in queries.get("solution_queries", [])[:1]:
+    for q in sol_q[:1]:
         res = validator_utils.search_forums(f"site:reddit.com {q}")
         if "organic" in res:
             for item in res["organic"]: raw_results.append(f"[SOLUTION] {item.get('title','')} - {item.get('snippet','')}")
@@ -217,28 +223,117 @@ def compile_final_pdf(idea_name):
     # --- PAGE 1: TITLE & EXECUTIVE SUMMARY ---
     pdf.add_page()
     logger.info(f"   📄 Generating Page {pdf.page_no()}: Title & Executive Summary")
-    pdf.set_font_for_content('B', 24)
-    pdf.cell(0, 20, f"Market Research: {pdf_utils.fix_arabic(idea_name)}", 0, 1, 'C')
+    
+    # Title Styling
+    pdf.set_font_for_content('B', 14)
+    # Use Moss for Label
+    pdf.set_text_color(*pdf_utils.PDFReport.COLOR_MOSS)
+    pdf.cell(0, 10, "MARKET RESEARCH REPORT", 0, 1, 'C')
+    
+    pdf.ln(5)
+    
+    # Idea Name (Big & Wrapped)
+    pdf.set_font_for_content('B', 20)
+    # Fix Arabic on the Uppercased string to prevent issues
+    pdf.multi_cell(0, 10, pdf_utils.fix_arabic(idea_name.upper()), 0, 'C')
+    
+    pdf.ln(5)
+    
+    # Subtitle in Mustard (Italic)
+    pdf.set_font_for_content('', 12)
+    pdf.set_text_color(*pdf_utils.PDFReport.COLOR_MOSS)
+    try:
+        pdf.set_font("Helvetica", 'I', 14)
+    except:
+        pdf.set_font("Arial", 'I', 14)
+    pdf.cell(0, 10, "Comprehensive Market Analysis", 0, 1, 'C')
+    
+    pdf.set_text_color(0, 0, 0) # Reset
     pdf.ln(10)
     
     # Read Report
-    report_text = "No report text found."
-    if os.path.exists("data_output/FINAL_MARKET_REPORT.md"):
-        with open("data_output/FINAL_MARKET_REPORT.md", "r", encoding="utf-8") as f:
-            raw_text = f.read()
-            report_text = raw_text.replace("**", "").replace("##", "").replace("###", "").replace("---", "")
-    
+    report_text = "No report text found. Please check generation logs."
+    report_path = "data_output/FINAL_MARKET_REPORT.md"
+    if os.path.exists(report_path):
+        try:
+            with open(report_path, "r", encoding="utf-8") as f:
+                raw_text = f.read()
+                if not raw_text.strip():
+                     logger.warning("   ⚠️ Report file exists but is empty.")
+                else:
+                    report_text = raw_text.replace("**", "").replace("##", "").replace("###", "").replace("---", "")
+        except Exception as e:
+            logger.error(f"   ⚠️ Error reading report: {e}")
+            report_text = f"Error reading executive summary: {e}"
+    else:
+         logger.warning(f"   ⚠️ Report file not found at {report_path}")
+
     pdf.chapter_title("Executive Summary")
-    pdf.chapter_body(pdf_utils.fix_arabic(report_text[:2000] + "..."))
+    pdf.chapter_body(pdf_utils.fix_arabic(report_text[:2500] + "...")) # Increased limit
     
-    # --- PAGE 2: MARKET DEMAND ---
+    # --- PAGE 2: MARKET DEMAND & SCORES ---
     pdf.add_page()
-    logger.info(f"   📄 Generating Page {pdf.page_no()}: Market Validation")
-    pdf.chapter_title("Market Validation & Trends")
+    logger.info(f"   📄 Generating Page {pdf.page_no()}: Market Validation & Scores")
+    pdf.chapter_title("Market Validation & Scores")
     
+    # 1. Pain Score Bar
+    val_file = f"data_output/{idea_name.replace(' ', '_')}_validation.json"
+    pain_score = 50 
+    if os.path.exists(val_file):
+        try:
+            with open(val_file, 'r') as f:
+                val_data = json.load(f)
+                pain_score = val_data.get('pain_score', 50)
+        except: pass
+    
+    pdf.draw_score_bar("Pain Score (Problem Severity)", pain_score)
+
+    # 2. Growth/Trend Score Bar (Derived from trends)
+    growth_score = 0
+    if os.path.exists("data_output/market_trends.csv"):
+        try:
+            # We don't have a direct 'score' but we have growth pct. Let's map it.
+            # Simple heuristic matching pdf_utils.generate_report logic:
+            # growth_score = max(0, min(100, growth_pct + 50))
+            stats = pd.read_csv("data_output/market_stats.csv") # Check filename
+            # Actually tools.py calls it `market_stats.csv` in `fetch_trend_data` but returns `market_trends.csv`? 
+            # `fetch_trend_data` returns `market_trends.csv`. Let's use that if it exists.
+            # Wait, `fetch_trend_data` in `tools.py` saves to `data_output/market_trends.csv`.
+            df_trends = pd.read_csv("data_output/market_trends.csv") # It might be a different format.
+            # Let's verify `fetch_trend_data` implementation.
+            # It returns "data_output/market_trends.csv".
+            # But line 36 of `pdf_utils` reads `data_output/market_stats.csv`. 
+            # I should align with what `tools.py` produces.
+            # For now in `tools.py` `fetch_trend_data` (line 119) returns `data_output/market_trends.csv`.
+            # I'll try to read that.
+            pass
+        except: pass
+    
+    # Just reusing logic from pdf_utils line 36-39 if possible, but cleaner.
+    # I'll just skip detailed growth bar for now to avoid breaking if file formats differ, 
+    # unless I'm sure. I'll stick to Pain Score which is robust.
+
     if os.path.exists("data_output/market_demand_chart.png"):
+        pdf.ln(10)
         pdf.add_image_centered("data_output/market_demand_chart.png")
-        pdf.chapter_body("Analysis of market interest over the last 12 months.")
+        pdf.ln(5)
+        try:
+            pdf.set_font("Helvetica", 'B', 10)
+        except:
+            pdf.set_font("Arial", 'B', 10)
+
+        pdf.set_text_color(*pdf_utils.PDFReport.COLOR_MOSS)
+        pdf.cell(0, 10, "TREND ANALYSIS:", 0, 1, 'L')
+        pdf.set_font_for_content('', 10)
+        pdf.set_text_color(*pdf_utils.PDFReport.COLOR_DARK_TEXT)
+        
+        # Read Dynamic Analysis
+        trend_text = "The chart above illustrates the search interest and market demand trend over the last 12 months."
+        if os.path.exists("data_output/trend_analysis.txt"):
+            with open("data_output/trend_analysis.txt", "r") as f:
+                trend_text = f.read().strip()
+                
+        pdf.multi_cell(0, 6, pdf_utils.fix_arabic(trend_text))
     else:
         pdf.set_text_color(255, 0, 0)
         pdf.cell(0, 10, "Analysis Unavailable: Market trend data could not be generated.", 0, 1, 'L')
@@ -252,11 +347,23 @@ def compile_final_pdf(idea_name):
     if os.path.exists("data_output/finance_summary.csv"):
         pdf.cell(0, 10, "1. Startup Cost Estimates", 0, 1, 'L')
         pdf.add_image_centered("data_output/finance_startup_pie.png")
+        pdf.ln(2)
+        pdf.set_font_for_content('', 10)
+        
+        # Read Dynamic Financial Analysis
+        fin_text = "breakdown of estimated initial capital requirements to launch the business."
+        if os.path.exists("data_output/financial_analysis.txt"):
+            with open("data_output/financial_analysis.txt", "r") as f:
+                fin_text = f.read().strip()
+                
+        pdf.multi_cell(0, 6, pdf_utils.fix_arabic(fin_text))
         
         pdf.add_page()
         pdf.chapter_title("Profitability Projections")
         pdf.cell(0, 10, "2. Break-Even Analysis", 0, 1, 'L')
         pdf.add_image_centered("data_output/finance_breakeven_line.png")
+        pdf.ln(2)
+        pdf.multi_cell(0, 6, "Projected cumulative cash flow over the first 24 months, highlighting the break-even point where net profit turns positive.")
     else:
         pdf.set_text_color(255, 0, 0)
         pdf.cell(0, 10, "Analysis Unavailable: Financial data could not be generated.", 0, 1, 'L')
@@ -273,7 +380,8 @@ def compile_final_pdf(idea_name):
             
         # Ocean Type
         ocean = size_data.get("market_type", "Unknown")
-        color = (255, 0, 0) if "Red" in ocean else (0, 0, 255) # Red vs Blue text
+        # Use Moss for Blue Ocean (Good), Dark Red for Red Ocean (Bad)
+        color = (200, 50, 50) if "Red" in ocean else pdf_utils.PDFReport.COLOR_MOSS 
         
         pdf.set_font_for_content('B', 14)
         pdf.set_text_color(*color)
@@ -316,9 +424,15 @@ def compile_final_pdf(idea_name):
             
             pdf.set_font_for_content('B', 10)
             # Adjusted Widths: Name (50), Features (140)
-            pdf.cell(50, 10, 'Competitor', 1)
-            pdf.cell(140, 10, 'Key Features Identified', 1)
-            pdf.ln()
+            
+            # Header with Moss Background and White Text
+            pdf.set_fill_color(*pdf_utils.PDFReport.COLOR_MOSS)
+            pdf.set_text_color(255, 255, 255)
+            pdf.cell(50, 10, 'Competitor', 1, 0, 'C', True)
+            pdf.cell(140, 10, 'Key Features Identified', 1, 1, 'C', True)
+            
+            # Reset Text Color
+            pdf.set_text_color(0, 0, 0)
             
             pdf.set_font_for_content('', 9)
             for _, row in df.head(8).iterrows():

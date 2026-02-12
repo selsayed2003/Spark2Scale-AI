@@ -196,7 +196,7 @@ def financial_extraction_prompt(idea, market_data, currency_code):
 
 def investment_memo_prompt(query, pain_score, growth_pct, grade, opp_score, finance_summary, val_data):
     return f"""
-    You are a Venture Capital Analyst.
+    You are an AI Market Research Engine.
     TOPIC: {query}
     EXECUTIVE DASHBOARD:
     PAIN SCORE: {pain_score}/100
@@ -206,5 +206,51 @@ def investment_memo_prompt(query, pain_score, growth_pct, grade, opp_score, fina
     FINANCIAL PROJECTIONS: {finance_summary}
     QUALITATIVE EVIDENCE: {val_data}
     
-    TASK: Write a comprehensive Investment Memo.
+    Using the data above, write a comprehensive Investment Memo.
+    
+    CRITICAL INSTRUCTIONS:
+    1. **TONE**: strict, professional, OBJECTIVE, THIRD-PERSON. 
+       - DO NOT use "I", "me", "my", "we", or "us".
+       - Instead, use phrases like "The report evaluates...", "Data indicates...", "Analysis suggests...".
+    2. **NAME**: Use the EXACT startup name provided: "{query}". DO NOT invent a new name or rename it.
+    3. **Focus**:
+       - Executive Summary (Objective overview of potential).
+       - Market Opportunity (Trends & Size - cite the growth rate).
+       - Competitive Advantage (Based on the grade/score).
+       - Financial Viability (Based on the projections/costs).
+       - Final Recommendation (Objective verdict based on data).
+    """
+
+def trend_analysis_prompt(growth_pct, source, trend_data=""):
+    return f"""
+    You are a Senior Market Strategist.
+    DATA:
+    - 12-Month Growth: {growth_pct:.1f}%
+    - Source: {source}
+    - Recent Trend Data Points: {trend_data}
+
+    TASK: Write a 3-4 sentence detailed analysis of this trend for a report caption.
+    - Sentence 1: Analyze the velocity and magnitude of the trend (is it explosive, steady, or declining?).
+    - Sentence 2: Explain the underlying drivers (e.g., consumer behavior shifts, technology adoption).
+    - Sentence 3: Discuss the strategic implication for a new entrant (e.g., "This creates a window for...", "Suggests high barriers to entry due to saturation").
+    - FORMATTING: Use **double asterisks** to bold 2-3 key phrases (e.g., **rapid acceleration**, **market saturation**).
+
+    RETURN ONLY THE PARAGRAPH. No intro/outro.
+    """
+
+def financial_analysis_prompt(startup_total, currency, break_even_month, net_profit):
+    return f"""
+    You are a Senior Financial Consultant.
+    DATA:
+    - Total Startup Cost: {startup_total:,.0f} {currency}
+    - Break-Even Point: Month {break_even_month}
+    - Monthly Net Profit (Projected): {net_profit:,.0f} {currency}
+
+    TASK: Write a 3-4 sentence financial health assessment for a report caption.
+    - Sentence 1: Evaluate the capital efficiency and barrier to entry based on startup costs.
+    - Sentence 2: Assess the risk profile given the break-even timeline (is it fast or slow return?).
+    - Sentence 3: Project the long-term sustainability based on the monthly profit margins.
+    - FORMATTING: Use **double asterisks** to bold 2-3 key insights (e.g., **capital efficient launch**, **delayed ROI**, **strong margin potential**).
+
+    RETURN ONLY THE PARAGRAPH. No intro/outro.
     """

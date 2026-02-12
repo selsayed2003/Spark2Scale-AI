@@ -17,9 +17,12 @@ class Settings(BaseSettings):
 
 settings = Settings()
 
-from google import genai
+import google.generativeai as genai
+
+gemini_client = None
+
 try:
-    gemini_client = genai.Client(api_key=settings.GEMINI_API_KEY)
+    genai.configure(api_key=settings.GEMINI_API_KEY)
+    gemini_client = genai
 except Exception as e:
     print(f"Warning: Failed to initialize Gemini client: {e}")
-    gemini_client = None

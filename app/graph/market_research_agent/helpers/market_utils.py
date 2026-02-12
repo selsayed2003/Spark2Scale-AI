@@ -135,14 +135,10 @@ def search_wikidata(query):
     except Exception as e:
         logger.warning(f"   ⚠️ Wikidata Error: {e}")
         
-        # --- NEW: SMART AI FALLBACK (No Hardcoding) ---
         try:
             logger.info("   🤖 Wikidata failed. Asking AI for the best Wikipedia topic...")
             fallback_prompt = prompts.wiki_fallback_prompt(query)
-            res = gemini_client.models.generate_content(
-                model=settings.GEMINI_MODEL_NAME, 
-                contents=fallback_prompt
-            )
+            res = gemini_client.GenerativeModel(settings.GEMINI_MODEL_NAME).generate_content(fallback_prompt)
             return res.text.strip()
         except:
             return "Business"
@@ -192,7 +188,9 @@ def plot_trends(data, source_name, col):
     os.makedirs("data_output", exist_ok=True)
     stats.to_csv("data_output/market_stats.csv", index=False)
 
-    plt.figure(figsize=(10, 6))
+    plt.figure(figsize=(10, 6), facecolor='#F0EADC')
+    ax = plt.gca()
+    ax.set_facecolor('#F0EADC')
     plt.plot(data.index, data[col], label=f"{source_name} (Growth: {growth_pct:.1f}%)", color='#2ca02c') 
     
     z =  pd.Series(range(len(data)))
@@ -207,12 +205,26 @@ def plot_trends(data, source_name, col):
     data.to_csv(f"data_output/market_trends.csv")
     plt.close()
     
+    # --- DYNAMIC ANALYSIS ---
+    try:
+        recent_data = str(data[col].tail(5).values.tolist())
+        prompt = prompts.trend_analysis_prompt(growth_pct, source_name, recent_data)
+        res = gemini_client.GenerativeModel(settings.GEMINI_MODEL_NAME).generate_content(prompt)
+        analysis_text = res.text.strip().replace('"', '')
+        with open("data_output/trend_analysis.txt", "w") as f:
+            f.write(analysis_text)
+    except Exception as e:
+        logger.warning(f"Trend Analysis Failed: {e}")
+        # Fallback text
+        with open("data_output/trend_analysis.txt", "w") as f:
+            f.write(f"The market for {source_name} has shown a {growth_pct:.1f}% change over the last year. This trend indicates shifting consumer interest levels.")
+
     return growth_pct
 
 def identify_industry(idea):
     try:
         prompt_ind = prompts.identify_industry_prompt(idea)
-        res = gemini_client.models.generate_content(model=settings.GEMINI_MODEL_NAME, contents=prompt_ind)
+        res = gemini_client.GenerativeModel(settings.GEMINI_MODEL_NAME).generate_content(prompt_ind)
         return res.text.strip().replace('"','')
     except Exception as e:
         logger.warning(f"   ⚠️ Industry ID Error: {e}")
@@ -242,14 +254,42 @@ def search_market_reports(query):
         logger.warning(f"   ⚠️ Search Error: {e}")
         return ""
 
+import re
+
+def extract_json_from_text(text):
+    """
+    Extracts the first valid JSON block from a string, handling markdown code blocks.
+    """
+    try:
+        # 1. Try to find content within ```json ... ``` blocks
+        match = re.search(r'```json\s*(.*?)\s*```', text, re.DOTALL)
+        if match:
+            return json.loads(match.group(1))
+        
+        # 2. Try to find content within curly braces { ... }
+        match = re.search(r'\{.*\}', text, re.DOTALL)
+        if match:
+            return json.loads(match.group(0))
+            
+        # 3. Fallback: try raw text if it looks like JSON
+        return json.loads(text)
+    except Exception as e:
+        logger.warning(f"JSON Extraction Failed: {e}")
+        return None
+
 def analyze_market_size(idea, industry, location, market_data):
     logger.info("   🧮 triangulating market numbers...")
     analysis_prompt = prompts.analyze_market_size_prompt(idea, industry, location, market_data)
     
     try:
-        res = gemini_client.models.generate_content(model=settings.GEMINI_MODEL_NAME, contents=analysis_prompt)
-        text_resp = res.text.replace("```json","").replace("```","").strip()
-        return json.loads(text_resp)
+        res = gemini_client.GenerativeModel(settings.GEMINI_MODEL_NAME).generate_content(analysis_prompt)
+        # Use robust extractor
+        data = extract_json_from_text(res.text)
+        if data: return data
+        
+        # Fallback if extraction fails
+        logger.warning("   ⚠️ JSON Extraction returned None. Using raw text fallback logic or error.")
+        return None
     except Exception as e:
         logger.warning(f"   ⚠️ Sizing Analysis Error: {e}")
         return None
@@ -272,7 +312,9 @@ def plot_market_funnel(result, industry):
         
         colors = ['#ff9999', '#66b3ff', '#99ff99']
         
-        plt.figure(figsize=(8, 6))
+        plt.figure(figsize=(8, 6), facecolor='#F0EADC')
+        ax = plt.gca()
+        ax.set_facecolor('#F0EADC')
         # Create a funnel-like bar chart
         plt.barh([3, 2, 1], sizes, color=colors, height=0.6)
         plt.yticks([3, 2, 1], ["TAM", "SAM", "SOM"])

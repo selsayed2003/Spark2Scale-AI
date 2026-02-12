@@ -20,7 +20,7 @@ def detect_currency(idea):
     print(f"   🌍 Detecting location and currency for: '{idea}'...")
     try:
         prompt = prompts.detect_currency_prompt(idea)
-        res = gemini_client.models.generate_content(model=settings.GEMINI_MODEL_NAME, contents=prompt)
+        res = gemini_client.GenerativeModel(settings.GEMINI_MODEL_NAME).generate_content(prompt)
         return json.loads(res.text.replace("```json","").replace("```","").strip())
     except:
         return {"country": "Global", "currency_code": "USD", "currency_symbol": "$"}
@@ -51,7 +51,7 @@ def get_real_world_estimates(idea):
     print(f"   🤖 Identifying cost drivers in {country} ({curr_code})...")
     plan_prompt = prompts.financial_plan_prompt(idea, country, curr_code)
     try:
-        res = gemini_client.models.generate_content(model=settings.GEMINI_MODEL_NAME, contents=plan_prompt)
+        res = gemini_client.GenerativeModel(settings.GEMINI_MODEL_NAME).generate_content(plan_prompt)
         queries = json.loads(res.text.replace("```json","").replace("```","").strip())
     except:
         queries = [f"commercial rent prices {country}", f"average salary {country}", f"coffee bean price {country}"]
@@ -67,7 +67,7 @@ def get_real_world_estimates(idea):
 def generate_financial_estimates(idea, market_data, currency_code):
     extract_prompt = prompts.financial_extraction_prompt(idea, market_data, currency_code)
     try:
-        res = gemini_client.models.generate_content(model=settings.GEMINI_MODEL_NAME, contents=extract_prompt)
+        res = gemini_client.GenerativeModel(settings.GEMINI_MODEL_NAME).generate_content(extract_prompt)
         return json.loads(res.text.replace("```json","").replace("```","").strip())
     except Exception as e:
         print(f"⚠️ Extraction Error: {e}")
@@ -91,7 +91,7 @@ def generate_financial_visuals(estimates):
     monthly_profit = monthly_rev - total_monthly
     
     try:
-        plt.figure(figsize=(8, 8))
+        plt.figure(figsize=(8, 8), facecolor='#F0EADC')
         plt.pie(startup.values(), labels=startup.keys(), autopct='%1.1f%%', colors=plt.cm.Pastel1.colors)
         plt.title(f"Startup Costs in {curr}\nTotal: {total_startup:,.0f} {curr}")
         plt.savefig("data_output/finance_startup_pie.png")
@@ -117,7 +117,9 @@ def generate_financial_visuals(estimates):
         break_even_indices = np.where(cash_flow > 0)[0]
         break_even_month = break_even_indices[0] if len(break_even_indices) > 0 else 99
         
-        plt.figure(figsize=(10, 6))
+        plt.figure(figsize=(10, 6), facecolor='#F0EADC')
+        ax = plt.gca()
+        ax.set_facecolor('#F0EADC')
         plt.plot(months, cash_flow, label=f'Net Cash ({curr})', color='green', linewidth=2)
         plt.axhline(0, color='black', linestyle='--')
         plt.title(f"Break-Even Analysis (Profit: {monthly_profit:,.0f} {curr}/mo)")
@@ -137,6 +139,18 @@ def generate_financial_visuals(estimates):
         "Value": [curr, total_startup, total_monthly, monthly_rev, monthly_profit, break_even_month]
     }
     pd.DataFrame(summary).to_csv("data_output/finance_summary.csv", index=False)
+    
+    # --- DYNAMIC ANALYSIS ---
+    try:
+        prompt = prompts.financial_analysis_prompt(total_startup, curr, break_even_month, monthly_profit)
+        res = gemini_client.GenerativeModel(settings.GEMINI_MODEL_NAME).generate_content(prompt)
+        analysis_text = res.text.strip().replace('"', '')
+        with open("data_output/financial_analysis.txt", "w") as f:
+            f.write(analysis_text)
+    except Exception as e:
+        logger.warning(f"Financial Analysis Failed: {e}")
+        with open("data_output/financial_analysis.txt", "w") as f:
+            f.write(f"Estimated startup costs are {total_startup:,.0f} {curr} with a projected break-even at month {break_even_month}. Careful cash flow management is recommended.")
     
     # Save raw estimates to JSON for final report compilation
     with open("data_output/finance_estimates.json", "w") as f:

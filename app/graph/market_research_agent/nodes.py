@@ -96,9 +96,9 @@ def report_node(state: MarketResearchState):
     trend_file = state.get("trends_file")
     finance_file = state.get("finance_file")
     
-    if val_file: 
-        logger.info(f"Generating report using validation file: {val_file}")
-        generate_report(val_file, idea, trend_file=trend_file, finance_file=finance_file)
+    # Always attempt to generate report, even if some inputs are missing
+    logger.info(f"Generating report for: {idea}")
+    generate_report(val_file if val_file else "", idea, trend_file=trend_file, finance_file=finance_file)
         
     return {"report_text": "Report Generated"}
 
