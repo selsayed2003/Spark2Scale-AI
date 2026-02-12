@@ -2,8 +2,8 @@ import json
 import os
 import time
 from google import genai
-from app.graph.state import AgentState
-from app.core.config import settings
+from .state import RecommendationState
+from app.core.config import Config
 from app.utils.logger import logger
 from .prompts import SYSTEM_ADVISOR_PROMPT, RECOMMENDATION_PROMPT_TEMPLATE, STATEMENT_IMPROVEMENT_PROMPT
 
@@ -13,7 +13,7 @@ def recommendation_node(state: RecommendationState):
     """
     try:
         # Get API key from config
-        api_key = settings.GEMINI_API_KEY
+        api_key = Config.GEMINI_API_KEY
         if not api_key:
             logger.error("GEMINI_API_KEY not configured. Please set it in your .env file.")
             return {"recommendation": "Error: GEMINI_API_KEY not configured. Please set it in your .env file."}

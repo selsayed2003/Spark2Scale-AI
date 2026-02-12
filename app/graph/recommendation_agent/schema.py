@@ -2,7 +2,7 @@ from pydantic import BaseModel
 from typing import List, Dict, Any, Optional, TypedDict
 
 class SectionScore(BaseModel):
-    score: int
+    score: float
     description: str
 
 class StartupScores(BaseModel):
