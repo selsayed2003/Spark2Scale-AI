@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from app.graph.ppt_generation_agent import app_graph
 from app.graph.ppt_generation_agent.state import PPTGenerationState
 from app.graph.ppt_generation_agent.tools.ppt_tools import generate_pptx_file
+from app.graph.ppt_generation_agent.tools.input_loader import load_input_directory
 from app.core.logger import get_logger
 
 logger = get_logger(__name__)
@@ -62,6 +63,46 @@ async def run_ppt_generation(state: PPTGenerationState, output_path: str):
             )
         logger.error(f"Error in PPT generation: {error_msg}")
         raise HTTPException(status_code=500, detail=error_msg)
+
+
+async def generate_deck_from_local_files(output_dir: str):
+    """
+    Load input from local directory and run PPT generation.
+    Used by generate_pitch_deck.py script.
+    """
+    # Load input data from the standard input directory
+    input_dir = os.path.join(PROJECT_ROOT, "app/graph/ppt_generation_agent/input")
+    loaded_input = load_input_directory(input_dir)
+    
+    if not loaded_input or not loaded_input.research_data:
+        raise ValueError("No valid input data found in input directory")
+    
+    # Scan for logo file in input directory
+    logo_path = None
+    if os.path.isdir(input_dir):
+        for filename in os.listdir(input_dir):
+            lower_name = filename.lower()
+            if lower_name.startswith("logo") and lower_name.endswith((".png", ".jpg", ".jpeg")):
+                logo_path = os.path.join(input_dir, filename)
+                logger.info(f"Found logo file: {logo_path}")
+                break
+    
+    timestamp = int(time.time())
+    output_filename = os.path.join(output_dir, f"presentation_{timestamp}.pptx")
+    
+    # Create initial state from loaded input (LoadedInput is a dataclass, not a dict)
+    initial_state: PPTGenerationState = {
+        "research_data": loaded_input.research_data,
+        "logo_path": logo_path,
+        "color_palette": None,  # TODO: Support color palette from input
+        "use_default_colors": not bool(logo_path),  # Use logo colors if logo is provided
+        "draft": None,
+        "critique": None,
+        "iteration": 0,
+        "ppt_path": None,
+    }
+    
+    return await run_ppt_generation(initial_state, output_filename)
 
 
 @router.post("/generate")

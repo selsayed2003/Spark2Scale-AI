@@ -14,7 +14,7 @@ class LoadedInput:
     """Result of loading input directory: flat dict for create_sections_from_data, string for graph."""
     flat_data: Dict[str, Any]
     research_data: str
-    source: str  # "csv" | "json"
+    source: str
 
 
 def read_csv_strict(filepath: str) -> dict:
