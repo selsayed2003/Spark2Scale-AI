@@ -560,7 +560,7 @@ async def final_node(state: AgentState):
         """
 
     # 4. Generate with LLM
-    llm = get_llm(temperature=0.1, provider="gemini") 
+    llm = get_llm(temperature=0, provider="groq") 
     chain = PromptTemplate.from_template(FINAL_SYNTHESIS_PROMPT) | llm | JsonOutputParser()
 
     try:

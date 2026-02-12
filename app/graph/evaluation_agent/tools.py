@@ -99,7 +99,7 @@ RETRY_CONFIG = {
 async def contradiction_check(data: dict, agent_prompt: str) -> str:
     async with concurrency_limiter:
         logger.info("🤖 Contradiction Check...")
-        llm = get_llm(temperature=0, provider="groq")
+        llm = get_llm(provider="ollama", model_name="gemma3:1b")
         chain = PromptTemplate.from_template(agent_prompt) | llm | StrOutputParser()
         return await chain.ainvoke({
             "current_date": datetime.now().strftime("%Y-%m-%d"),
@@ -110,14 +110,14 @@ async def contradiction_check(data: dict, agent_prompt: str) -> str:
 async def team_risk_check(data: dict, agent_prompt: str) -> str:
     async with concurrency_limiter:
         logger.info("📉 Team Risk Check...")
-        llm = get_llm(temperature=0, provider="groq")
+        llm = get_llm(provider="ollama", model_name="gemma3:1b")
         chain = PromptTemplate.from_template(agent_prompt) | llm | StrOutputParser()
         return await chain.ainvoke({"json_data": json.dumps(data, indent=2)})
 @retry(**RETRY_CONFIG)
 async def loaded_risk_check_with_search(problem_data: dict, search_results: dict, agent_prompt: str) -> str:
     async with concurrency_limiter:
         logger.info("🛡️ Problem Risk Check...")
-        llm = get_llm(temperature=0, provider="groq")
+        llm = get_llm(provider="ollama", model_name="gemma3:1b")
         chain = PromptTemplate.from_template(agent_prompt) | llm | StrOutputParser()
         return await chain.ainvoke({
             "internal_json": json.dumps(problem_data, indent=2),
@@ -150,7 +150,7 @@ async def verify_problem_claims(problem_statement: str, target_audience: str) ->
 
     # 1. Generate Queries
     async with concurrency_limiter:
-        llm = get_llm(temperature=0, provider="groq")
+        llm = get_llm(provider="ollama", model_name="gemma3:1b")
         query_gen_prompt = f"""
         Search Expert. Convert to 3 Google queries.
         Audience: {target_audience}
@@ -234,7 +234,7 @@ async def analyze_visuals_with_langchain(company_name, website_url, prompt_templ
     async with concurrency_limiter:
         logger.info("👁️ Vision Analysis...")
         # Vision requires Gemini (Groq doesn't do image inputs well yet usually)
-        llm = get_llm(temperature=0, provider="groq") 
+        llm = get_llm(temperature=0, provider="gemini") 
         msg = HumanMessage(content=[
             {"type": "text", "text": prompt_template.format(company_name=company_name, website_url=website_url)},
             {"type": "image_url", "image_url": f"data:image/png;base64,{capture['image_b64']}"}
@@ -322,7 +322,7 @@ async def tam_sam_verifier_tool(beachhead: str, location: str, claimed_size: str
 async def local_dependency_detective(tech_stack: str, acquisition_channel: str, product_desc: str):
     async with concurrency_limiter:
         logger.info("🕵️ Dependency Detective...")
-        llm = get_llm(temperature=0, provider="groq")
+        llm = get_llm(provider="ollama", model_name="gemma3:1b")
         prompt_text = f"""
         Analyze platform risks for Product: {product_desc}, Tech: {tech_stack}, Channel: {acquisition_channel}.
         Respond ONLY JSON: {{ "risk_level": "High/Medium/Low", "red_flags": ["..."], "search_query_needed": "..." }}
@@ -338,7 +338,7 @@ async def local_dependency_detective(tech_stack: str, acquisition_channel: str, 
 async def market_risk_agent(market_inputs, tam_result, radar_result, dep_result):
     async with concurrency_limiter:
         logger.info("📉 Market Risk...")
-        llm = get_llm(temperature=0, provider="groq")
+        llm = get_llm(provider="ollama", model_name="gemma3:1b")
         chain = PromptTemplate.from_template(VALUATION_RISK_MARKET_PROMPT_TEMPLATE) | llm | StrOutputParser()
         return await chain.ainvoke({
             "internal_json": json.dumps(market_inputs, indent=2),
@@ -378,7 +378,7 @@ async def market_scoring_agent(data_package: dict) -> dict:
 @retry(**RETRY_CONFIG)
 async def traction_risk_agent(traction_data: dict, risk_prompt_template: str) -> str:
     async with concurrency_limiter:
-        llm = get_llm(temperature=0, provider="groq")
+        llm = get_llm(provider="ollama", model_name="gemma3:1b")
         chain = PromptTemplate.from_template(risk_prompt_template) | llm | StrOutputParser()
         return await chain.ainvoke({"traction_json": json.dumps(traction_data, indent=2)})
 @retry(**RETRY_CONFIG)
@@ -409,7 +409,7 @@ async def traction_scoring_agent(data_package: dict) -> dict:
 @retry(**RETRY_CONFIG)
 async def gtm_risk_agent(gtm_data: dict, risk_prompt_template: str) -> str:
     async with concurrency_limiter:
-        llm = get_llm(temperature=0, provider="groq")
+        llm = get_llm(provider="ollama", model_name="gemma3:1b")
         chain = PromptTemplate.from_template(risk_prompt_template) | llm | StrOutputParser()
         return await chain.ainvoke({"gtm_json": json.dumps(gtm_data, indent=2)})
 @retry(**RETRY_CONFIG)
@@ -495,7 +495,7 @@ def calculate_economics_with_judgment(gtm_data: dict) -> dict:
     else: metrics["payback_months"] = "Unknown"
 
     # AI JUDGE
-    llm = get_llm(temperature=0, provider="groq")
+    llm = get_llm(provider="ollama", model_name="gemma3:1b")
     chain = PromptTemplate.from_template(ECONOMIC_JUDGEMENT_PROMPT) | llm | StrOutputParser()
     try:
         raw_judge = chain.invoke({
@@ -535,7 +535,7 @@ async def evaluate_business_model_with_context(business_data: dict) -> dict:
         cost_to_serve = price * (1 - (margin_percent / 100)) if price > 0 else 0
 
         # LLM Judge
-        llm = get_llm(temperature=0, provider="groq")
+        llm = get_llm(provider="ollama", model_name="gemma3:1b")
         chain = PromptTemplate.from_template(BUSINESS_MODEL_JUDGE_PROMPT) | llm | StrOutputParser()
         
         try:
@@ -566,7 +566,7 @@ async def evaluate_business_model_with_context(business_data: dict) -> dict:
 @retry(**RETRY_CONFIG)
 async def business_risk_agent(business_data: dict, risk_prompt_template: str) -> str:
     async with concurrency_limiter:
-        llm = get_llm(temperature=0, provider="groq")
+        llm = get_llm(provider="ollama", model_name="gemma3:1b")
         chain = PromptTemplate.from_template(risk_prompt_template) | llm | StrOutputParser()
         return await chain.ainvoke({"business_data": json.dumps(business_data, indent=2)})
 @retry(**RETRY_CONFIG)
@@ -610,7 +610,7 @@ async def analyze_category_future(vision_data: dict) -> dict:
         # LLM Phase (Sequential)
         async with concurrency_limiter:
             logger.info("🌐 Vision Analysis (LLM)...")
-            llm = get_llm(temperature=0, provider="groq")
+            llm = get_llm(provider="ollama", model_name="gemma3:1b")
             prompt = PromptTemplate.from_template(CATEGORY_FUTURE_PROMPT)
             chain = prompt | llm | StrOutputParser()
             
@@ -626,7 +626,7 @@ async def analyze_category_future(vision_data: dict) -> dict:
 @retry(**RETRY_CONFIG)
 async def vision_risk_agent(vision_data: dict, market_analysis: dict, template: str) -> str:
     async with concurrency_limiter:
-        llm = get_llm(temperature=0, provider="groq")
+        llm = get_llm(provider="ollama", model_name="gemma3:1b")
         chain = PromptTemplate.from_template(template) | llm | StrOutputParser()
         return await chain.ainvoke({
             "vision_data": json.dumps(vision_data, indent=2),
@@ -680,7 +680,7 @@ async def get_funding_benchmarks(location: str, stage: str, sector: str) -> str:
 @retry(**RETRY_CONFIG)
 async def operations_risk_agent(operations_data: dict, benchmarks: str, template: str) -> str:
     async with concurrency_limiter:
-        llm = get_llm(temperature=0, provider="groq")
+        llm = get_llm(provider="ollama", model_name="gemma3:1b")
         chain = PromptTemplate.from_template(template) | llm | StrOutputParser()
         return await chain.ainvoke({
             "operations_data": json.dumps(operations_data, indent=2),
