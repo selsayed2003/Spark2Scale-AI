@@ -573,12 +573,13 @@ async def final_node(state: AgentState):
         })
         
         # ====================================================
-        # 🛡️ SAFETY BACKFILL & FORMATTING
+        # 🛡️ SAFETY BACKFILL (Fixes "Missing Sections")
         # ====================================================
         required_dims = ["team", "problem", "product", "market", "traction", "gtm", "business", "vision", "operations"]
         
+        # Access Founder Output safely
         founder_root = final_json.get("founder_output", {})
-        founder_content = founder_root.get("Content", founder_root)
+        founder_content = founder_root.get("Content", founder_root) # Handle nesting
         
         llm_dims = founder_content.get("dimension_analysis", [])
         
@@ -594,39 +595,17 @@ async def final_node(state: AgentState):
         # Rebuild complete list
         complete_dims = []
         for key in required_dims:
-            # Get the raw report from state
-            raw_report = state.get(f"{key}_report", {})
-            
-            # --- NEW LOGIC: Construct the Description Manually ---
-            # This ensures even if the LLM misses it, we build it here.
-            
-            raw_expl = raw_report.get("explanation", "Analysis pending.")
-            raw_reds = raw_report.get("red_flags", [])
-            raw_greens = raw_report.get("green_flags", [])
-            
-            # Create the formatted summary string
-            formatted_description = (
-                f"{raw_expl}\n\n"
-                f"🚩 Key Weaknesses:\n" + "\n".join([f"- {r}" for r in raw_reds]) + "\n\n"
-                f"✅ Key Strengths:\n" + "\n".join([f"- {g}" for g in raw_greens])
-            )
-            # -----------------------------------------------------
-
             if key in llm_map:
-                # If LLM generated it, check if description exists, if not, inject it
-                dim_data = llm_map[key]
-                if "description" not in dim_data or not dim_data["description"]:
-                    dim_data["description"] = formatted_description
-                complete_dims.append(dim_data)
+                complete_dims.append(llm_map[key])
             else:
                 logger.warning(f"Finalizer skipped {key}. Backfilling.")
+                raw_report = state.get(f"{key}_report", {})
                 complete_dims.append({
                     "dimension": key.title(),
                     "score": rubric_5.get(key, 0),
                     "confidence_level": raw_report.get("confidence_level", "Medium"),
-                    "justification": raw_expl,
-                    "description": formatted_description, 
-                    "red_flags": raw_reds,
+                    "justification": raw_report.get("explanation", "Analysis pending."),
+                    "red_flags": raw_report.get("red_flags", []),
                     "improvements": ["Review risks highlighted in analysis."]
                 })
 
@@ -636,28 +615,36 @@ async def final_node(state: AgentState):
         else:
             final_json["founder_output"]["dimension_analysis"] = complete_dims
         
-        # ... (Rest of your overwrites for scores/verdict remain the same) ...
-
+        # ====================================================
+        # 🔢 SCORE OVERWRITE (Fixes "Pending / 0.0" Verdict)
+        # ====================================================
+        
+        # 1. Overwrite INVESTOR Output
         if "Content" in final_json["investor_output"]:
-             final_json["investor_output"]["Content"]["Scorecard Grid"] = rubric_5
-             final_json["investor_output"]["Content"]["Weighted Score"] = weighted_total
-             final_json["investor_output"]["Content"]["Verdict"] = verdict
+            final_json["investor_output"]["Content"]["Scorecard Grid"] = rubric_5
+            final_json["investor_output"]["Content"]["Weighted Score"] = weighted_total
+            final_json["investor_output"]["Content"]["Verdict"] = verdict
         else:
-             final_json["investor_output"]["scorecard_grid"] = rubric_5
-             final_json["investor_output"]["weighted_score"] = weighted_total
-             final_json["investor_output"]["verdict"] = verdict
+            final_json["investor_output"]["scorecard_grid"] = rubric_5
+            final_json["investor_output"]["weighted_score"] = weighted_total
+            final_json["investor_output"]["verdict"] = verdict
 
+        # 2. Overwrite FOUNDER Output (THIS WAS MISSING BEFORE)
         if "Content" in final_json["founder_output"]:
             final_json["founder_output"]["Content"]["Scorecard Grid"] = rubric_5
-            final_json["founder_output"]["Content"]["Weighted Score"] = weighted_total
-            final_json["founder_output"]["Content"]["Verdict"] = verdict
+            final_json["founder_output"]["Content"]["Weighted Score"] = weighted_total # Fix
+            final_json["founder_output"]["Content"]["Verdict"] = verdict             # Fix
         else:
             final_json["founder_output"]["scorecard_grid"] = rubric_5
-            final_json["founder_output"]["weighted_score"] = weighted_total
-            final_json["founder_output"]["verdict"] = verdict
+            final_json["founder_output"]["weighted_score"] = weighted_total          # Fix
+            final_json["founder_output"]["verdict"] = verdict                      # Fix
 
     except Exception as e:
         logger.error(f"Final Synthesis Failed: {e}")
-        # Error handling logic...
-        
+        final_json = {
+            "error": str(e),
+            "investor_output": {"verdict": verdict, "weighted_score": weighted_total, "scorecard_grid": rubric_5},
+            "founder_output": {"verdict": verdict, "score": weighted_total, "scorecard_grid": rubric_5, "dimension_analysis": []}
+        }
+
     return {"final_report": final_json}

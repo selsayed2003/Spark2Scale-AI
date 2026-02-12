@@ -26,4 +26,3 @@ reportlab==4.4.9
 langchain-groq==1.1.2
 json-repair==0.57.1
 matplotlib==3.10.8
-langsmith==0.7.1
