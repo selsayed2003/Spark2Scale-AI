@@ -6,7 +6,7 @@ import arabic_reshaper
 from bidi.algorithm import get_display
 from fpdf import FPDF
 
-from app.core.config import settings, gemini_client
+from app.core.config import Config, gemini_client
 from app.graph.market_research_agent import prompts
 from app.graph.market_research_agent.logger_config import get_logger
 import json
@@ -57,7 +57,7 @@ def generate_report(file_path: str, query: str, trend_file=None, finance_file=No
     prompt = prompts.investment_memo_prompt(query, pain_score, growth_pct, grade, opp_score, finance_summary, val_data)
     try:
         # Gemini Call
-        res = gemini_client.GenerativeModel(settings.GEMINI_MODEL_NAME).generate_content(prompt)
+        res = gemini_client.GenerativeModel(Config.GEMINI_MODEL_NAME).generate_content(prompt)
         content = res.text
         with open("data_output/FINAL_MARKET_REPORT.md", "w", encoding="utf-8") as f: f.write(content)
         logger.info(f"✅ Final Report Saved.")

@@ -10,13 +10,13 @@ import matplotlib.pyplot as plt
 import yfinance as yf
 import datetime
 from pytrends.request import TrendReq
-from app.core.config import settings, gemini_client
+from app.core.config import Config, gemini_client
 from app.graph.market_research_agent import prompts
 from app.graph.market_research_agent.logger_config import get_logger
 
 logger = get_logger("MarketUtils")
 
-SERPER_API_KEY = settings.SERPER_API_KEY
+SERPER_API_KEY = Config.SERPER_API_KEY
 
 def fetch_stock_data(ticker_symbol: str, period: str = "2y"):
     """
@@ -138,7 +138,7 @@ def search_wikidata(query):
         try:
             logger.info("   🤖 Wikidata failed. Asking AI for the best Wikipedia topic...")
             fallback_prompt = prompts.wiki_fallback_prompt(query)
-            res = gemini_client.GenerativeModel(settings.GEMINI_MODEL_NAME).generate_content(fallback_prompt)
+            res = gemini_client.GenerativeModel(Config.GEMINI_MODEL_NAME).generate_content(fallback_prompt)
             return res.text.strip()
         except:
             return "Business"
@@ -209,7 +209,7 @@ def plot_trends(data, source_name, col):
     try:
         recent_data = str(data[col].tail(5).values.tolist())
         prompt = prompts.trend_analysis_prompt(growth_pct, source_name, recent_data)
-        res = gemini_client.GenerativeModel(settings.GEMINI_MODEL_NAME).generate_content(prompt)
+        res = gemini_client.GenerativeModel(Config.GEMINI_MODEL_NAME).generate_content(prompt)
         analysis_text = res.text.strip().replace('"', '')
         with open("data_output/trend_analysis.txt", "w") as f:
             f.write(analysis_text)
@@ -224,7 +224,7 @@ def plot_trends(data, source_name, col):
 def identify_industry(idea):
     try:
         prompt_ind = prompts.identify_industry_prompt(idea)
-        res = gemini_client.GenerativeModel(settings.GEMINI_MODEL_NAME).generate_content(prompt_ind)
+        res = gemini_client.GenerativeModel(Config.GEMINI_MODEL_NAME).generate_content(prompt_ind)
         return res.text.strip().replace('"','')
     except Exception as e:
         logger.warning(f"   ⚠️ Industry ID Error: {e}")
@@ -282,7 +282,7 @@ def analyze_market_size(idea, industry, location, market_data):
     analysis_prompt = prompts.analyze_market_size_prompt(idea, industry, location, market_data)
     
     try:
-        res = gemini_client.GenerativeModel(settings.GEMINI_MODEL_NAME).generate_content(analysis_prompt)
+        res = gemini_client.GenerativeModel(Config.GEMINI_MODEL_NAME).generate_content(analysis_prompt)
         # Use robust extractor
         data = extract_json_from_text(res.text)
         if data: return data
