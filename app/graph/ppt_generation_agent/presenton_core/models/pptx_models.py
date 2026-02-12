@@ -91,6 +91,7 @@ class PptxParagraphModel(BaseModel):
     spacing: Optional[PptxSpacingModel] = None
     alignment: Optional[Any] = None
     font: Optional[PptxFontModel] = None
+    highlight_font: Optional[PptxFontModel] = None  # Used for <b> runs (e.g. accent color + bold)
     line_height: Optional[float] = None
     text: Optional[str] = None
     text_runs: Optional[List[PptxTextRunModel]] = None

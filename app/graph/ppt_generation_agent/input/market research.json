@@ -1,0 +1,77 @@
+{
+    "idea_name": "Tabaani Startup Evaluation AI",
+    "executive_summary": "## Investment Memo: Tabaani\n\n**Date:** February 11, 2026\n\n**To:** Investment Committee\n\n**From:** [Your Name/VC Firm Name], Venture Capital Analyst\n\n**Subject:** Investment Recommendation - Tabaani\n\n---\n\n**I. Executive Summary:**\n\nTabaani is an AI-powered platform designed to help early-stage startups validate ideas, generate essential business documents, and reach investors efficiently. The solution addresses a major pain point for founders navigating the early stages of startup creation. While the market opportunity is promising, financial and growth uncertainties remain, requiring careful due diligence.\n\n**II. The Opportunity:**\n\n**Pain Score: 78/100**\nEarly-stage founders struggle to structure their ideas and connect with investors. Tabaani addresses this high-demand need by providing AI-guided evaluation and documentation tools.\n\n**Opportunity Grade: B (65.4)**\nThe startup targets a growing niche of AI-assisted startup evaluation platforms. Adoption potential is high but competitive dynamics exist.\n\n**Solution Fit Score: High**\nTabaani’s AI solution directly mitigates founder confusion and time loss by generating actionable evaluation reports and investor-ready documents.\n\n**III. Financial Projections & Analysis:**\n\n| Metric           | Value      |\n|------------------|------------|\n| Currency         | USD        |\n| Total Startup    | 250,000    |\n| Monthly Expenses | 120,000    |\n| Monthly Revenue  | 80,000     |\n| Net Profit       | -40,000    |\n| Break-Even Month | 80         |\n\n**Analysis:**\n\nThe company has a high burn rate, negative net profit, and extended break-even timeline, indicating a need for improved monetization or reduced costs.\n\n**IV. Qualitative Evidence:**\n\nInterviews with early-stage founders and pilot users validate the demand for structured startup evaluation. Pain points include time lost, lack of guidance, and difficulty accessing investors.\n\n**V. Risks and Concerns:**\n\n* Financial sustainability\n* Negative growth trend\n* Scalability of AI model\n* Competitive landscape\n* Customer acquisition efficiency\n\n**VI. Investment Recommendation:**\n\n**Recommendation: DEFER, pending further due diligence and growth strategy clarity.**",
+    "market_sizing": {
+        "tam_value": "$10 Billion",
+        "tam_description": "Global market for AI startup evaluation and support tools.",
+        "sam_value": "$500 Million",
+        "sam_description": "Market for AI-based early-stage startup evaluation tools in the MENA region.",
+        "som_value": "$25 Million",
+        "som_description": "Estimated achievable market in initial launch years.",
+        "market_type": "Red Ocean",
+        "scalability_score": "High",
+        "scalability_reasoning": "Software-based AI solution can scale globally without major linear cost increases.",
+        "sources": [
+            "AI in Startup Support Market Reports 2025",
+            "MENA Startup Ecosystem Report 2025"
+        ]
+    },
+    "competitors": [
+        {
+            "Name": "Spark2Scale",
+            "Features": "Startup evaluation and documentation AI"
+        },
+        {
+            "Name": "Tabaani Competitor X",
+            "Features": "Idea validation platform"
+        }
+    ],
+    "validation": {
+        "verdict": "VALIDATED",
+        "pain_score": 78,
+        "pain_score_reasoning": "Founders need structured support to validate ideas and reach investors, which is currently missing in most startup ecosystems.",
+        "solution_fit_score": "High",
+        "reasoning": "AI-powered generation of evaluation reports directly addresses founder pain points."
+    },
+    "finance": {
+        "currency": "USD",
+        "startup_costs": {
+            "development_app_website": 100000,
+            "legal_licenses": 10000,
+            "marketing_launch_campaign": 50000,
+            "office_equipment_rent": 15000,
+            "contingency_fund": 75000
+        },
+        "monthly_fixed_costs": {
+            "server_cloud_infrastructure": 10000,
+            "marketing_ad_spend": 30000,
+            "salaries_staff": 70000,
+            "utilities_tools_misc": 5000
+        },
+        "revenue_assumptions": {
+            "avg_ticket_price": 400,
+            "daily_customers": 10
+        },
+        "sources_used": [
+            "https://example.com/startup-financials"
+        ]
+    },
+    "trends": [
+        {
+            "metric": "growth_pct",
+            "value": "-10%"
+        },
+        {
+            "metric": "start_avg",
+            "value": "50"
+        },
+        {
+            "metric": "end_avg",
+            "value": "45"
+        },
+        {
+            "metric": "source",
+            "value": "Internal pilot data"
+        }
+    ]
+}

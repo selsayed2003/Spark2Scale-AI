@@ -5,9 +5,9 @@ from pydantic import BaseModel, Field
 
 class PPTSection(BaseModel):
     title: str = Field(..., description="Title of the slide/section")
-    content: List[str] = Field(..., description="Bullet points or key content for the slide")
+    content: List[str] = Field(..., description="Bullet points or key content for the slide. Use <b>word</b> to bold 1-3 important or catchy words per bullet.")
     speaker_notes: str = Field(..., description="Narrative for the speaker")
-    image_prompt: Optional[str] = Field(None, description="Detailed prompt for generating an image for this slide. If None, no image is generated.")
+    image_prompt: Optional[str] = Field(None, description="Simple icon-style prompt only (e.g. 'simple flat icon of lightbulb, minimal, single concept, white background'). If None, no image is generated.")
     image_path: Optional[str] = Field(None, description="Path to the generated image file.")
     data_visualization: Optional[str] = Field(None, description="Description of data to visualize (e.g., 'Bar chart showing 50% growth in 2024'). If None, no chart.")
     visualization_data: Optional[dict] = Field(None, description="Structured data for the chart if applicable (e.g., {'labels': ['A', 'B'], 'values': [10, 20], 'type': 'bar'}).")

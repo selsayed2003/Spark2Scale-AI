@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from app.graph.ppt_generation_agent import app_graph
 from app.graph.ppt_generation_agent.state import PPTGenerationState
 from app.graph.ppt_generation_agent.utils import generate_pptx_file
+from app.graph.ppt_generation_agent.input_loader import load_input_directory
 from app.core.logger import get_logger
 
 logger = get_logger(__name__)
@@ -75,55 +76,12 @@ async def generate_ppt(input_data: PPTInput):
 
 @router.post("/generate-test")
 async def generate_test_ppt():
-    """Trigger the specific 'Assil Pitch Deck' test case (Logo + combined CSVs)."""
-    # 1. Prepare Logo
+    """Trigger test case: Logo + combined input from JSON or CSV (startup info + market research)."""
     logo_path = os.path.join(INPUT_DIR, "Logo.jpg")
-    
-    # 2. Combine CSVs
-    combined_research = []
-    for filename in ["startup info.csv", "market research.csv"]:
-        filepath = os.path.join(INPUT_DIR, filename)
-        if os.path.exists(filepath):
-            with open(filepath, 'r', encoding='utf-8') as f:
-                combined_research.append(f"--- Data from {filename} ---\n{f.read()}")
-    
-    research_data = "\n\n".join(combined_research) if combined_research else "Assil Startup Pitch Deck"
-    
+    loaded = load_input_directory(INPUT_DIR)
+    research_data = loaded.research_data.strip() or "Startup Pitch Deck (no input files)"
     timestamp = int(time.time())
     output_filename = os.path.join(OUTPUT_DIR, f"api_test_assil_{timestamp}.pptx")
-    
-    initial_state: PPTGenerationState = {
-        "research_data": research_data,
-        "logo_path": logo_path if os.path.exists(logo_path) else None,
-        "color_palette": None,
-        "use_default_colors": False, # Important: use logo colors
-        "draft": None,
-        "critique": None,
-        "iteration": 0,
-        "ppt_path": None
-    }
-    return await run_ppt_generation(initial_state, output_filename)
-
-@router.post("/generate-from-local")
-async def generate_from_local():
-    """Scan the input folder for all CSVs and generate a presentation."""
-    combined_research = []
-    if os.path.exists(INPUT_DIR):
-        for f in os.listdir(INPUT_DIR):
-            if f.endswith('.csv'):
-                filepath = os.path.join(INPUT_DIR, f)
-                with open(filepath, 'r', encoding='utf-8') as file:
-                    combined_research.append(f"--- {f} ---\n{file.read()}")
-    
-    if not combined_research:
-        raise HTTPException(status_code=400, detail="No CSV files found in the input directory.")
-        
-    research_data = "\n\n".join(combined_research)
-    logo_path = os.path.join(INPUT_DIR, "Logo.jpg")
-    
-    timestamp = int(time.time())
-    output_filename = os.path.join(OUTPUT_DIR, f"api_local_bundle_{timestamp}.pptx")
-    
     initial_state: PPTGenerationState = {
         "research_data": research_data,
         "logo_path": logo_path if os.path.exists(logo_path) else None,
@@ -132,6 +90,38 @@ async def generate_from_local():
         "draft": None,
         "critique": None,
         "iteration": 0,
-        "ppt_path": None
+        "ppt_path": None,
     }
     return await run_ppt_generation(initial_state, output_filename)
+
+@router.post("/generate-from-local")
+async def generate_from_local():
+    """Scan the input folder for JSON or CSV files and generate a presentation."""
+    loaded = load_input_directory(INPUT_DIR)
+    if not loaded.research_data and not loaded.flat_data:
+        raise HTTPException(
+            status_code=400,
+            detail="No JSON or CSV files found in the input directory.",
+        )
+    research_data = loaded.research_data.strip() or _flat_data_to_research_text(loaded.flat_data)
+    logo_path = os.path.join(INPUT_DIR, "Logo.jpg")
+    timestamp = int(time.time())
+    output_filename = os.path.join(OUTPUT_DIR, f"api_local_bundle_{timestamp}.pptx")
+    initial_state: PPTGenerationState = {
+        "research_data": research_data,
+        "logo_path": logo_path if os.path.exists(logo_path) else None,
+        "color_palette": None,
+        "use_default_colors": False,
+        "draft": None,
+        "critique": None,
+        "iteration": 0,
+        "ppt_path": None,
+    }
+    return await run_ppt_generation(initial_state, output_filename)
+
+
+def _flat_data_to_research_text(flat_data: dict) -> str:
+    """Turn flat_data into a string for the LLM when only flat_data is available."""
+    if not flat_data:
+        return "Startup pitch deck data."
+    return "\n".join(f"{k}: {v}" for k, v in flat_data.items() if v)
