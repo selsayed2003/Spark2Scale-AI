@@ -34,41 +34,6 @@ def _generate_image_pollinations(prompt: str, output_dir: str) -> Optional[str]:
     return filepath
 
 
-def _generate_image_openai(prompt: str, output_dir: str) -> Optional[str]:
-    """Generate image via OpenAI DALL-E 3 (higher quality, requires OPENAI_API_KEY)."""
-    try:
-        from openai import OpenAI
-    except ImportError:
-        logger.warning("openai package not installed. Install with: pip install openai")
-        return None
-    if not config.OPENAI_API_KEY:
-        logger.warning("OPENAI_API_KEY not set; falling back to Pollinations.")
-        return None
-    icon_suffix = ", high-quality 3D render, sophisticated professional illustration, clean lines, solid background"
-    full_prompt = (prompt.strip().rstrip(".,") + " " + icon_suffix).strip()
-    logger.info(f"Generating image via OpenAI DALL-E 3 for prompt: {full_prompt}")
-    client = OpenAI(api_key=config.OPENAI_API_KEY)
-    resp = client.images.generate(
-        model="dall-e-3",
-        prompt=full_prompt,
-        size="1024x1024",
-        quality="standard",
-        style="natural",
-        n=1,
-    )
-    image_url = resp.data[0].url
-    if not image_url:
-        return None
-    img_response = requests.get(image_url, timeout=60)
-    img_response.raise_for_status()
-    filename = f"{uuid.uuid4()}.png"
-    filepath = os.path.join(output_dir, filename)
-    with open(filepath, "wb") as f:
-        f.write(img_response.content)
-    logger.info(f"Image saved to {filepath}")
-    return filepath
-
-
 def _generate_image_google(prompt: str, output_dir: str) -> Optional[str]:
     """Generate image via Google GenAI SDK (gemini-2.5-flash-image)."""
     try:
@@ -113,7 +78,8 @@ def _generate_image_google(prompt: str, output_dir: str) -> Optional[str]:
 
 def generate_image(prompt: str, output_dir: str) -> Optional[str]:
     """
-    Generates an image for the slide. Uses Google GenAI, OpenAI DALL-E 3, or Pollinations.
+    Generates an image for the slide. Uses Google GenAI (Gemini image) when
+    IMAGE_PROVIDER=google; otherwise uses Pollinations.
     """
     try:
         provider = getattr(config, "IMAGE_PROVIDER", "pollinations") or "pollinations"
@@ -122,13 +88,7 @@ def generate_image(prompt: str, output_dir: str) -> Optional[str]:
             out = _generate_image_google(prompt, output_dir)
             if out: return out
             logger.info("Google GenAI failed; falling back to Pollinations.")
-            
-        if provider.lower() == "openai" and getattr(config, "OPENAI_API_KEY", None):
-            out = _generate_image_openai(prompt, output_dir)
-            if out:
-                return out
-            logger.info("OpenAI image failed or skipped; falling back to Pollinations.")
-            
+
         return _generate_image_pollinations(prompt, output_dir)
     except Exception as e:
         logger.error(f"Error generating image: {e}")

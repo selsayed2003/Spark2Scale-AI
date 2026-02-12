@@ -9,11 +9,11 @@ class Config:
     GEMINI_TEMPERATURE = float(os.getenv("GEMINI_TEMPERATURE", "0.7"))
     MAX_ITERATIONS = int(os.getenv("MAX_ITERATIONS", "2"))
     POLLINATIONS_API_KEY = os.getenv("POLLINATIONS_API_KEY")
-    # Image generation: "flux" (default), "gptimage", "gptimage-large", "seedream", "seedream-pro". gptimage-large often better for simple icons.
-    IMAGE_MODEL = os.getenv("IMAGE_MODEL", "klein")
-    # Optional: use OpenAI DALL-E 3 for images (set OPENAI_API_KEY and IMAGE_PROVIDER=openai)
-    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-    IMAGE_PROVIDER = os.getenv("IMAGE_PROVIDER", "pollinations")  # "pollinations" | "openai"
+    # Image generation:
+    # - Provider is configured via IMAGE_PROVIDER: "pollinations" (default) or "google" (Gemini image model).
+    # - IMAGE_MODEL controls the underlying model name for that provider.
+    IMAGE_MODEL = os.getenv("IMAGE_MODEL", "gptimage-large")
+    IMAGE_PROVIDER = os.getenv("IMAGE_PROVIDER", "pollinations")  # "pollinations" | "google"
 
 
 config = Config()
