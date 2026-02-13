@@ -177,7 +177,9 @@ def run_finance_model(idea, plan=None):
             
         estimates = finance_utils.generate_financial_estimates(idea, market_data, currency)
     else:
-        estimates = finance_utils.get_real_world_estimates(idea)
+        # Optimization: Pass market_identity if available to skip currency detection
+        currency_context = plan.get("market_identity") if plan else None
+        estimates = finance_utils.get_real_world_estimates(idea, currency_context=currency_context)
         
     if not estimates:
         logger.warning("Financial estimation failed.")
@@ -261,7 +263,7 @@ def compile_final_pdf(idea_name):
                 if not raw_text.strip():
                      logger.warning("   ⚠️ Report file exists but is empty.")
                 else:
-                    report_text = raw_text.replace("**", "").replace("##", "").replace("###", "").replace("---", "")
+                    report_text = raw_text
         except Exception as e:
             logger.error(f"   ⚠️ Error reading report: {e}")
             report_text = f"Error reading executive summary: {e}"
@@ -269,7 +271,7 @@ def compile_final_pdf(idea_name):
          logger.warning(f"   ⚠️ Report file not found at {report_path}")
 
     pdf.chapter_title("Executive Summary")
-    pdf.chapter_body(pdf_utils.fix_arabic(report_text[:2500] + "...")) # Increased limit
+    pdf.chapter_body(report_text[:2500] + "...") # Increased limit
     
     # --- PAGE 2: MARKET DEMAND & SCORES ---
     pdf.add_page()

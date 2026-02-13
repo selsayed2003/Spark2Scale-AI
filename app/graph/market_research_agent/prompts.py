@@ -66,9 +66,14 @@ def generate_validation_queries_prompt(idea, problem_statement):
     return f"Idea: {idea} | Problem: {problem_statement}. Return JSON: {{ 'problem_queries': ['q1'], 'solution_queries': ['q2'] }}"
 
 def analyze_pain_points_prompt(idea, problem_statement, evidence):
+    formatted_evidence = evidence
+    if isinstance(evidence, list):
+        formatted_evidence = "\n".join([str(e) for e in evidence])
+
     return f"""
     HYPOTHESIS: '{idea}' solves '{problem_statement}'.
-    EVIDENCE: {evidence[:20]}
+    EVIDENCE: 
+    {formatted_evidence}
     
     TASK:
     1. Assign a PAIN SCORE (0-100). How intense is the user's frustration?
