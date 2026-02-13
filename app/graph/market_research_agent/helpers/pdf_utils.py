@@ -18,7 +18,7 @@ logger = get_logger("PDFUtils")
 def generate_report(file_path: str, query: str, trend_file=None, finance_file=None):
     logger.info(f"\n📝 [Tool 5] Synthesizing Data & Calculating Opportunity Score...")
     
-    pain_score = 0
+    pain_score = 50
     val_data = ""
     if file_path and os.path.exists(file_path):
         with open(file_path, 'r') as f: 
@@ -128,19 +128,46 @@ class PDFReport(FPDF):
             if not line.strip():
                 self.ln(line_height) # Empty line -> vertical space
                 continue
-                
-            # Reset to regular font first
-            self.set_font_for_content('', 12) # Increased to 12
-            self.set_text_color(*self.COLOR_DARK_TEXT)
+            
+            clean_line = line.strip()
+            is_header = False
+            header_level = 0
+            
+            # Detect Header
+            if clean_line.startswith('### '):
+                header_level = 3
+                line = clean_line[4:]
+                is_header = True
+            elif clean_line.startswith('## '):
+                header_level = 2
+                line = clean_line[3:]
+                is_header = True
+            elif clean_line.startswith('# '):
+                header_level = 1
+                line = clean_line[2:]
+                is_header = True
+            
+            # Set Font for Line
+            if is_header:
+                self.set_font_for_content('B', 14 - (header_level * 1)) # Sizes: 13, 12, 11...
+                self.set_text_color(*self.COLOR_MOSS)
+            else:
+                self.set_font_for_content('', 12)
+                self.set_text_color(*self.COLOR_DARK_TEXT)
             
             parts = line.split('**')
             for i, part in enumerate(parts):
-                if i % 2 == 1: # Odd indices are between ** ** -> BOLD
-                    self.set_font_for_content('B', 12) # Increased to 12
-                    self.write(line_height, part)
-                    self.set_font_for_content('', 12) # Revert
-                else: # Regular text
-                    self.write(line_height, part)
+                processed_text = fix_arabic(part)
+                
+                if i % 2 == 1: # BOLD
+                    if not is_header:
+                        self.set_font_for_content('B', 12)
+                    self.write(line_height, processed_text)
+                    if not is_header:
+                        self.set_font_for_content('', 12) 
+                else: # Regular
+                    self.write(line_height, processed_text)
+            
             self.ln(line_height)
 
     def draw_score_bar(self, label, score, max_score=100):
