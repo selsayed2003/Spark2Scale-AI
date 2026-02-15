@@ -41,3 +41,4 @@ python-bidi==0.6.7
 regex==2026.1.15
 typing_extensions==4.15.0
 tavily-python==0.7.21
+gunicorn
