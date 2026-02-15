@@ -13,7 +13,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-)
+) 
 
 # Include routers
 app.include_router(ppt_generation.router, prefix="/api/v1/ppt", tags=["PPT Generation"])
