@@ -17,12 +17,12 @@ logger = get_logger(__name__)
 router = APIRouter()
 
 # Constants
-if os.environ.get("RAILWAY_ENVIRONMENT"):
+if os.environ.get("RENDER") or os.environ.get("RENDER_SERVICE_NAME"):
     OUTPUT_DIR = "/tmp/ppt_output"
 else:
     PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
     OUTPUT_DIR = os.path.join(PROJECT_ROOT, "app/graph/ppt_generation_agent/output")
-
+    
 class PPTInput(BaseModel):
     """
     Main API contract. Accepts either a pre-merged `research_data` dict/string

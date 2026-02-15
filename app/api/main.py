@@ -3,7 +3,11 @@ from app.api.routes import ppt_generation, evaluation
 import uvicorn
 import os
 
-app = FastAPI(title="Spark2Scale AI Agent")
+app = FastAPI(
+    title="Spark2Scale AI Agent",
+    description="AI-powered startup evaluation and PPT generation",
+    version="1.0.0"
+)
 
 # Enable CORS
 from fastapi.middleware.cors import CORSMiddleware
@@ -13,17 +17,19 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-) 
+)
 
 # Include routers
 app.include_router(ppt_generation.router, prefix="/api/v1/ppt", tags=["PPT Generation"])
-# app.include_router(evaluation.router, prefix="/api/v1/evaluation", tags=["Evaluation"])
-# app.include_router(market_research.router, prefix="/api/v1/market-research", tags=["Market Research"])
-# app.include_router(recommendation.router, prefix="/api/v1/recommendation", tags=["Recommendation"])
+app.include_router(evaluation.router, prefix="/api/v1/evaluation", tags=["Evaluation"])
 
 @app.get("/")
 def read_root():
-    return {"message": "Spark2Scale AI Agent Service is Running"}
+    return {
+        "message": "Spark2Scale AI Agent Service is Running",
+        "version": "1.0.0",
+        "status": "active"
+    }
 
 @app.get("/health")
 def health_check():
