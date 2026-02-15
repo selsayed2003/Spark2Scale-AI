@@ -1,106 +1,61 @@
-name: Deploy Spark2Scale to Azure App Service
+name: Deploy Spark2Scale AI
 
 on:
   push:
     branches:
-      - main
-  workflow_dispatch:  # Allows manual trigger from GitHub Actions UI
+      - Merging        # ← Your active branch
+      - main           # ← Keep this too for when you merge
+  workflow_dispatch:   # ← Allows manual trigger from Actions tab
 
 env:
-  AZURE_WEBAPP_NAME: spark2scaleAI  # ← CHANGE: Your Azure App Service name
+  AZURE_WEBAPP_NAME: spark2scaleAI   # ← CHANGE to your exact Azure App Service name
   PYTHON_VERSION: "3.11"
 
 jobs:
-  # -----------------------------------------------------------
-  # JOB 1: BUILD
-  # -----------------------------------------------------------
-  build:
+  build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Repository
+      # ── Step 1: Checkout ──────────────────────────────────
+      - name: Checkout Code
         uses: actions/checkout@v4
 
+      # ── Step 2: Python Setup ──────────────────────────────
       - name: Set Up Python ${{ env.PYTHON_VERSION }}
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: "pip"
 
-      - name: Create and Activate Virtual Environment
-        run: |
-          python -m venv .venv
-          source .venv/bin/activate
-
+      # ── Step 3: Install Dependencies ─────────────────────
       - name: Install Dependencies
         run: |
-          source .venv/bin/activate
-          pip install --upgrade pip
+          python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      # Playwright is used in evaluation_agent/helpers.py (capture_screenshot)
-      - name: Install Playwright Chromium Browser
+      # ── Step 4: Install Playwright ────────────────────────
+      # (Used in evaluation_agent/helpers.py for screenshots)
+      - name: Install Playwright Chromium
         run: |
-          source .venv/bin/activate
           playwright install chromium
           playwright install-deps chromium
 
-      # Zip everything except dev/cache/output artifacts
-      - name: Zip Application for Deployment
+      # ── Step 5: Create required output directories ────────
+      # App expects these folders to exist at runtime
+      - name: Create Runtime Directories
         run: |
-          zip -r release.zip . \
-            --exclude "*.git*" \
-            --exclude ".github/*" \
-            --exclude "__pycache__/*" \
-            --exclude "*/__pycache__/*" \
-            --exclude "**/__pycache__/*" \
-            --exclude "*.pyc" \
-            --exclude "*.pyo" \
-            --exclude ".venv/*" \
-            --exclude "venv/*" \
-            --exclude "env/*" \
-            --exclude "outputs/*" \
-            --exclude "output/recommendations/*" \
-            --exclude "logs/*" \
-            --exclude "data_output/*" \
-            --exclude "*.zip" \
-            --exclude ".env" \
-            --exclude ".env.local"
+          mkdir -p outputs
+          mkdir -p logs
+          mkdir -p output/recommendations
 
-      - name: Upload Artifact for Deploy Job
-        uses: actions/upload-artifact@v4
-        with:
-          name: spark2scale-app
-          path: release.zip
-          retention-days: 1
-
-  # -----------------------------------------------------------
-  # JOB 2: DEPLOY TO AZURE APP SERVICE
-  # -----------------------------------------------------------
-  deploy:
-    runs-on: ubuntu-latest
-    needs: build
-    environment:
-      name: production
-      url: ${{ steps.deploy.outputs.webapp-url }}
-
-    steps:
-      - name: Download Artifact from Build Job
-        uses: actions/download-artifact@v4
-        with:
-          name: spark2scale-app
-
-      - name: Unzip Artifact
-        run: unzip release.zip
-
+      # ── Step 6: Deploy to Azure App Service ──────────────
       - name: Deploy to Azure App Service
-        id: deploy
         uses: azure/webapps-deploy@v3
         with:
           app-name: ${{ env.AZURE_WEBAPP_NAME }}
-          slot-name: production
           publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-
-      - name: Print Deployment URL
-        run: |
-          echo "✅ Deployed to: ${{ steps.deploy.outputs.webapp-url }}"
+          # ↑ GO ADD THIS SECRET NOW:
+          # GitHub → Your Repo → Settings → Secrets and variables
+          # → Actions → New repository secret
+          # Name:  AZURE_WEBAPP_PUBLISH_PROFILE
+          # Value: (paste the XML from Azure Portal → App Service
+          #         → Overview → Download publish profile)
