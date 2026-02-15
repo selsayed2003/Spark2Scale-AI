@@ -2,7 +2,7 @@ name: Deploy Spark2Scale AI
 on:
   push:
     branches:
-      - Merging
+      - Merging  # Triggers when you push to the Merging branch
 
 jobs:
   build-and-deploy:
@@ -13,21 +13,21 @@ jobs:
         uses: actions/checkout@v4
 
       - name: 'Set up Python'
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5 # v5 is the latest stable version
         with:
-          python-version: '3.11' # Matches the project requirements
+          python-version: '3.12' # Matches your Spark2Scale project requirement
 
       - name: 'Install dependencies'
+        # Using working-directory is the cleanest way to handle subfolders
         run: |
           python -m pip install --upgrade pip
-          # Installs the large library list from your specific AI subfolder
-          pip install -r salmasherif7070/spark2scale-ai/Spark2Scale-AI-Merging/requirements.txt
+          pip install -r requirements.txt
+        working-directory: Spark2Scale-AI-Merging 
 
       - name: 'Deploy to Azure Web App'
-        uses: azure/webapps-deploy@v2
+        uses: azure/webapps-deploy@v3
         with:
-          # Use the unique name you chose in the Azure Portal
           app-name: 'spark2scale-ai-service' 
           publish-profile: ${{ secrets.AZURE_AI_PUBLISH_PROFILE }}
-          # Deploys only the contents of the AI merging folder
-          package: ./salmasherif7070/spark2scale-ai/Spark2Scale-AI-Merging
+          # Points to the folder containing your FastAPI code
+          package: ./Spark2Scale-AI-Merging
