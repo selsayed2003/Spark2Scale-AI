@@ -3,12 +3,12 @@ name: Deploy Spark2Scale AI
 on:
   push:
     branches:
-      - Merging        # ← Your active branch
-      - main           # ← Keep this too for when you merge
-  workflow_dispatch:   # ← Allows manual trigger from Actions tab
+      - Merging
+      - main
+  workflow_dispatch:
 
 env:
-  AZURE_WEBAPP_NAME: spark2scaleAI   # ← CHANGE to your exact Azure App Service name
+  AZURE_WEBAPP_NAME: spark2scale-api   # ← your Azure App Service name
   PYTHON_VERSION: "3.11"
 
 jobs:
@@ -26,36 +26,44 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      # ── Step 3: Install Dependencies ─────────────────────
+      # ── Step 3: Install Dependencies into antenv ──────────
+      # Azure App Service Linux looks for 'antenv' by default
       - name: Install Dependencies
         run: |
-          python -m pip install --upgrade pip
+          python -m venv antenv
+          source antenv/bin/activate
+          pip install --upgrade pip
           pip install -r requirements.txt
 
       # ── Step 4: Install Playwright ────────────────────────
-      # (Used in evaluation_agent/helpers.py for screenshots)
       - name: Install Playwright Chromium
         run: |
+          source antenv/bin/activate
           playwright install chromium
           playwright install-deps chromium
 
-      # ── Step 5: Create required output directories ────────
-      # App expects these folders to exist at runtime
+      # ── Step 5: Create required runtime directories ───────
       - name: Create Runtime Directories
         run: |
           mkdir -p outputs
           mkdir -p logs
           mkdir -p output/recommendations
 
-      # ── Step 6: Deploy to Azure App Service ──────────────
+      # ── Step 6: Add startup script ────────────────────────
+      # This ensures Azure uses the correct Python + gunicorn
+      - name: Create Startup Script
+        run: |
+          cat > startup.sh << 'EOF'
+          #!/bin/bash
+          cd /home/site/wwwroot
+          source antenv/bin/activate
+          gunicorn -w 1 -k uvicorn.workers.UvicornWorker app.api.main:app --bind 0.0.0.0:8000 --timeout 300
+          EOF
+          chmod +x startup.sh
+
+      # ── Step 7: Deploy to Azure App Service ──────────────
       - name: Deploy to Azure App Service
         uses: azure/webapps-deploy@v3
         with:
           app-name: ${{ env.AZURE_WEBAPP_NAME }}
           publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-          # ↑ GO ADD THIS SECRET NOW:
-          # GitHub → Your Repo → Settings → Secrets and variables
-          # → Actions → New repository secret
-          # Name:  AZURE_WEBAPP_PUBLISH_PROFILE
-          # Value: (paste the XML from Azure Portal → App Service
-          #         → Overview → Download publish profile)
