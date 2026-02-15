@@ -36,8 +36,6 @@ webdriver-manager==4.0.2
 yfinance==1.1.0
 pytrends==4.9.2
 fpdf==1.7.2
-arabic-reshaper==3.0.0
-python-bidi>=0.4.2
 regex==2026.1.15
 typing_extensions==4.15.0
 tavily-python==0.7.21
