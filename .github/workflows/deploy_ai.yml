@@ -7,7 +7,7 @@ on:
   workflow_dispatch:  # Allows manual trigger from GitHub Actions UI
 
 env:
-  AZURE_WEBAPP_NAME: spark2scale-api    # ← CHANGE: Your Azure App Service name
+  AZURE_WEBAPP_NAME: spark2scaleAI  # ← CHANGE: Your Azure App Service name
   PYTHON_VERSION: "3.11"
 
 jobs:
