@@ -1,0 +1,132 @@
+name: Docker Build and Deploy
+
+on:
+  push:
+    branches: 
+      - Merging
+      - main
+  workflow_dispatch:
+
+env:
+  AZURE_WEBAPP_NAME: spark2scaleWebApp
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Login to Azure
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Login to Azure Container Registry
+        uses: azure/docker-login@v1
+        with:
+          login-server: ${{ secrets.REGISTRY_LOGIN_SERVER }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+
+      - name: Build and Push Docker Image
+        run: |
+          docker build . -t ${{ secrets.REGISTRY_LOGIN_SERVER }}/spark2scale-ai:${{ github.sha }}
+          docker build . -t ${{ secrets.REGISTRY_LOGIN_SERVER }}/spark2scale-ai:latest
+          docker push ${{ secrets.REGISTRY_LOGIN_SERVER }}/spark2scale-ai:${{ github.sha }}
+          docker push ${{ secrets.REGISTRY_LOGIN_SERVER }}/spark2scale-ai:latest
+
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          images: '${{ secrets.REGISTRY_LOGIN_SERVER }}/spark2scale-ai:${{ github.sha }}'
+```
+
+---
+
+### **FILE 3: `.dockerignore`** (in repo root)
+
+Create `.dockerignore` and paste:
+```
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.git/
+.github/
+.gitignore
+README.md
+.DS_Store
+outputs/
+logs/
+*.log
+.vscode/
+.idea/
+```
+
+---
+
+## **PHASE 5: CONFIGURE AZURE WEB APP**
+
+### **Step 5.1 — Upgrade to Premium Plan (REQUIRED for Ollama)**
+
+1. Go to Azure Portal → `spark2scaleWebApp`
+2. Left menu → **Scale up (App Service plan)**
+3. Select **P1V3** (Premium V3: 8GB RAM) or higher
+4. Click **Select**
+
+### **Step 5.2 — Configure Container Deployment**
+
+1. Still in `spark2scaleWebApp` → **Deployment Center**
+2. Set these values:
+   - **Source**: `Container Registry`
+   - **Registry**: Select your ACR (spark2scaleacr...)
+   - **Image**: `spark2scale-ai`
+   - **Tag**: `latest`
+   - **Continuous Deployment**: **ON**
+3. Click **Save**
+
+### **Step 5.3 — Add Environment Variables**
+
+1. **Configuration** → **Application settings**
+2. Click **+ New application setting** for each:
+```
+WEBSITES_PORT = 8000
+WEBSITES_CONTAINER_START_TIME_LIMIT = 1800
+DOCKER_ENABLE_CI = true
+GEMINI_API_KEY = your-key
+GROQ_API_KEY = your-key
+SERPER_API_KEY = your-key
+FIRECRAWL_KEY = your-key
+FINNHUB_KEY = your-key
+FMP_KEY = your-key
+HUGGINGFACE_API_TOKEN = your-key
+HF_TOKEN = your-key
+PEXELS_API_KEY = your-key
+PIXABAY_API_KEY = your-key
+MAX_ITERATIONS = 2
