@@ -57,20 +57,4 @@ EXPOSE 8000 11434
 
 # Create startup script
 RUN echo '#!/bin/bash\n\
-# Start Ollama in background\n\
-ollama serve &\n\
-OLLAMA_PID=$!\n\
-\n\
-# Wait for Ollama to be ready\n\
-echo "Waiting for Ollama to start..."\n\
-sleep 5\n\
-\n\
-# Pull the model you need (replace with your model)\n\
-ollama pull llama2\n\
-\n\
-# Start gunicorn\n\
-exec gunicorn -w 1 -k uvicorn.workers.UvicornWorker app.api.main:app --bind 0.0.0.0:8000 --timeout 300\n\
-' > /app/startup.sh && chmod +x /app/startup.sh
-
-# Run startup script
-CMD ["/app/startup.sh"]
+# Star
