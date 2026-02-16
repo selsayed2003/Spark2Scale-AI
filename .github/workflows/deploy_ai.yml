@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 env:
-  AZURE_WEBAPP_NAME: spark2scaleAI  # ← your Azure App Service name
+  AZURE_WEBAPP_NAME: spark2scaleai     # ← your exact Azure App Service name
   PYTHON_VERSION: "3.11"
 
 jobs:
@@ -20,50 +20,49 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      # ── Step 2: Python Setup ──────────────────────────────
-      - name: Set Up Python ${{ env.PYTHON_VERSION }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      # ── Step 3: Install Dependencies into antenv ──────────
-      # Azure App Service Linux looks for 'antenv' by default
-      - name: Install Dependencies
-        run: |
-          python -m venv antenv
-          source antenv/bin/activate
-          pip install --upgrade pip
-          pip install -r requirements.txt
-
-      # ── Step 4: Install Playwright ────────────────────────
-      - name: Install Playwright Chromium
-        run: |
-          source antenv/bin/activate
-          playwright install chromium
-          playwright install-deps chromium
-
-      # ── Step 5: Create required runtime directories ───────
+      # ── Step 2: Create runtime directories ───────────────
       - name: Create Runtime Directories
         run: |
           mkdir -p outputs
           mkdir -p logs
           mkdir -p output/recommendations
 
-      # ── Step 6: Add startup script ────────────────────────
-      # This ensures Azure uses the correct Python + gunicorn
+      # ── Step 3: Create startup script ────────────────────
+      # Azure runs this after Oryx finishes pip install
       - name: Create Startup Script
         run: |
           cat > startup.sh << 'EOF'
           #!/bin/bash
-          cd /home/site/wwwroot
-          source antenv/bin/activate
+          pip install playwright 2>/dev/null
+          playwright install chromium 2>/dev/null
           gunicorn -w 1 -k uvicorn.workers.UvicornWorker app.api.main:app --bind 0.0.0.0:8000 --timeout 300
           EOF
           chmod +x startup.sh
 
-      # ── Step 7: Deploy to Azure App Service ──────────────
+      # ── Step 4: Zip source code only (NO venv included) ───
+      # Azure Oryx will run pip install on their side using
+      # your requirements.txt — much faster than uploading deps
+      - name: Zip Source Code Only
+        run: |
+          zip -r deploy.zip . \
+            --exclude "*.git*" \
+            --exclude ".github/*" \
+            --exclude "__pycache__/*" \
+            --exclude "*/__pycache__/*" \
+            --exclude "**/__pycache__/*" \
+            --exclude "*.pyc" \
+            --exclude "antenv/*" \
+            --exclude ".venv/*" \
+            --exclude "venv/*" \
+            --exclude "outputs/*" \
+            --exclude "output/recommendations/*" \
+            --exclude "logs/*" \
+            --exclude "*.zip"
+
+      # ── Step 5: Deploy zip to Azure ───────────────────────
       - name: Deploy to Azure App Service
         uses: azure/webapps-deploy@v3
         with:
           app-name: ${{ env.AZURE_WEBAPP_NAME }}
           publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          package: deploy.zip
