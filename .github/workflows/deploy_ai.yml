@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 env:
-  AZURE_WEBAPP_NAME: spark2scaleai
+  AZURE_WEBAPP_NAME: spark2scaleAI
   PYTHON_VERSION: "3.11"
 
 jobs:
@@ -24,20 +24,17 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      # Install deps locally so they get included in the zip
-      - name: Install Dependencies
+      - name: Install Azure-safe Dependencies
         run: |
           pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install -r requirements-azure.txt
 
-      # Create folders the app needs at runtime
       - name: Create Runtime Directories
         run: |
           mkdir -p outputs
           mkdir -p logs
           mkdir -p output/recommendations
 
-      # Deploy directly — no zip step, let the action handle packaging
       - name: Deploy to Azure App Service
         uses: azure/webapps-deploy@v3
         with:
