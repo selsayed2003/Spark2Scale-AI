@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 env:
-  AZURE_WEBAPP_NAME: spark2scaleAI  # ← your exact Azure App Service name
+  AZURE_WEBAPP_NAME: spark2scaleai
   PYTHON_VERSION: "3.11"
 
 jobs:
@@ -16,63 +16,30 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # ── Step 1: Checkout ──────────────────────────────────
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      # ── Step 2: Create runtime directories ───────────────
+      - name: Set Up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      # Install deps locally so they get included in the zip
+      - name: Install Dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # Create folders the app needs at runtime
       - name: Create Runtime Directories
         run: |
           mkdir -p outputs
           mkdir -p logs
           mkdir -p output/recommendations
 
-      # ── Step 3: Create startup script ────────────────────
-      # This runs on Azure after deployment.
-      # It installs all deps first, then starts the server.
-      - name: Create Startup Script
-        run: |
-          cat > startup.sh << 'EOF'
-          #!/bin/bash
-          set -e
-          echo ">>> Installing Python dependencies..."
-          pip install --upgrade pip
-          pip install -r /home/site/wwwroot/requirements.txt
-
-          echo ">>> Installing Playwright Chromium..."
-          playwright install chromium
-
-          echo ">>> Starting Gunicorn..."
-          gunicorn -w 1 -k uvicorn.workers.UvicornWorker app.api.main:app \
-            --bind 0.0.0.0:8000 \
-            --timeout 300 \
-            --keep-alive 5 \
-            --log-level info
-          EOF
-          chmod +x startup.sh
-
-      # ── Step 4: Zip source code only ──────────────────────
-      - name: Zip Source Code Only
-        run: |
-          zip -r deploy.zip . \
-            --exclude "*.git*" \
-            --exclude ".github/*" \
-            --exclude "__pycache__/*" \
-            --exclude "*/__pycache__/*" \
-            --exclude "**/__pycache__/*" \
-            --exclude "*.pyc" \
-            --exclude "antenv/*" \
-            --exclude ".venv/*" \
-            --exclude "venv/*" \
-            --exclude "outputs/*" \
-            --exclude "output/recommendations/*" \
-            --exclude "logs/*" \
-            --exclude "*.zip"
-
-      # ── Step 5: Deploy to Azure ───────────────────────────
+      # Deploy directly — no zip step, let the action handle packaging
       - name: Deploy to Azure App Service
         uses: azure/webapps-deploy@v3
         with:
           app-name: ${{ env.AZURE_WEBAPP_NAME }}
           publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-          package: deploy.zip
