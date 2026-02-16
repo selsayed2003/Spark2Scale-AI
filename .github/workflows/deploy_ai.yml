@@ -5,7 +5,7 @@ on:
     branches:
       - Merging
       - main
-  workflow_dispatch:
+  workflow_dispatch: 
 
 env:
   AZURE_WEBAPP_NAME: spark2scaleAI
