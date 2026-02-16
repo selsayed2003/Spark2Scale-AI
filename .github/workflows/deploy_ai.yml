@@ -28,20 +28,30 @@ jobs:
           mkdir -p output/recommendations
 
       # ── Step 3: Create startup script ────────────────────
-      # Azure runs this after Oryx finishes pip install
+      # This runs on Azure after deployment.
+      # It installs all deps first, then starts the server.
       - name: Create Startup Script
         run: |
           cat > startup.sh << 'EOF'
           #!/bin/bash
-          pip install playwright 2>/dev/null
-          playwright install chromium 2>/dev/null
-          gunicorn -w 1 -k uvicorn.workers.UvicornWorker app.api.main:app --bind 0.0.0.0:8000 --timeout 300
+          set -e
+          echo ">>> Installing Python dependencies..."
+          pip install --upgrade pip
+          pip install -r /home/site/wwwroot/requirements.txt
+
+          echo ">>> Installing Playwright Chromium..."
+          playwright install chromium
+
+          echo ">>> Starting Gunicorn..."
+          gunicorn -w 1 -k uvicorn.workers.UvicornWorker app.api.main:app \
+            --bind 0.0.0.0:8000 \
+            --timeout 300 \
+            --keep-alive 5 \
+            --log-level info
           EOF
           chmod +x startup.sh
 
-      # ── Step 4: Zip source code only (NO venv included) ───
-      # Azure Oryx will run pip install on their side using
-      # your requirements.txt — much faster than uploading deps
+      # ── Step 4: Zip source code only ──────────────────────
       - name: Zip Source Code Only
         run: |
           zip -r deploy.zip . \
@@ -59,7 +69,7 @@ jobs:
             --exclude "logs/*" \
             --exclude "*.zip"
 
-      # ── Step 5: Deploy zip to Azure ───────────────────────
+      # ── Step 5: Deploy to Azure ───────────────────────────
       - name: Deploy to Azure App Service
         uses: azure/webapps-deploy@v3
         with:
