@@ -1,16 +1,13 @@
-name: Deploy Spark2Scale AI with Docker
-
+name: Docker Build and Deploy
 on:
   push:
-    branches:
-      - Merging
+    branches: [ Merging ]
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-
     steps:
-      - name: 'Checkout'
+      - name: 'Checkout Repo'
         uses: actions/checkout@v4
 
       - name: 'Login to Azure'
@@ -18,14 +15,14 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: 'Login to Container Registry'
+      - name: 'Login to ACR'
         uses: azure/docker-login@v1
         with:
           login-server: ${{ secrets.REGISTRY_LOGIN_SERVER }}
           username: ${{ secrets.REGISTRY_USERNAME }}
           password: ${{ secrets.REGISTRY_PASSWORD }}
 
-      - name: 'Build and Push Docker'
+      - name: 'Build and Push Docker Image'
         run: |
           docker build . -t ${{ secrets.REGISTRY_LOGIN_SERVER }}/spark2scale-ai:${{ github.sha }}
           docker push ${{ secrets.REGISTRY_LOGIN_SERVER }}/spark2scale-ai:${{ github.sha }}
