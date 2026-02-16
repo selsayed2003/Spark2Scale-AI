@@ -7,6 +7,10 @@ on:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    # Sets the working directory for all 'run' steps to the correct subfolder
+    defaults:
+      run:
+        working-directory: Spark2Scale-AI-Merging
 
     steps:
       - name: 'Checkout Github Action' 
@@ -15,17 +19,17 @@ jobs:
       - name: 'Set up Python'
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.11' # Matches the requirement in your branch
 
       - name: 'Install dependencies'
         run: |
           python -m pip install --upgrade pip
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          pip install -r requirements.txt
 
       - name: 'Deploy to Azure Web App'
         uses: azure/webapps-deploy@v3
         with:
           app-name: 'spark2scale-ai-service' 
           publish-profile: ${{ secrets.AZURE_AI_PUBLISH_PROFILE }}
-          # '.' refers to the current root directory where your code was checked out
-          package: .
+          # Deploys the code inside the Merging folder specifically
+          package: ./Spark2Scale-AI-Merging
